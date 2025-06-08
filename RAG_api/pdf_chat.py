@@ -13,8 +13,8 @@ embedding_model = OpenAIEmbeddings(
 )
 
 vector_db = QdrantVectorStore.from_existing_collection(
-    url="https://d166e4e5-a5d6-4547-92fa-a72bd2e46f50.europe-west3-0.gcp.cloud.qdrant.io:6333", 
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.RMPCpZQEUzQURo0N_Bxo7bQTvu4VOJdpm79eHD-Itw0",
+    url="db_endpoint", 
+    api_key="db_eky",
     collection_name="learning_vectors",
     embedding=embedding_model
 )
