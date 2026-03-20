@@ -1,5 +1,5 @@
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter 
+from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from dotenv import load_dotenv 
@@ -8,6 +8,7 @@ import os
 load_dotenv()  
 
 def process_pdfFile(file_path):
+    print(f"Starting PDF processing for: {file_path}")
     try:
         # Load the PDF file
         loader = PyPDFLoader(file_path)
@@ -28,15 +29,17 @@ def process_pdfFile(file_path):
         # Using [embedding_model] create embeddings of [split_docs] and store in DB
         vector_store = QdrantVectorStore.from_documents(
             documents=split_docs,
-            url="https://d166e4e5-a5d6-4547-92fa-a72bd2e46f50.europe-west3-0.gcp.cloud.qdrant.io:6333", 
-            api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.RMPCpZQEUzQURo0N_Bxo7bQTvu4VOJdpm79eHD-Itw0",
-            collection_name="learning_vectors",
+            url=os.getenv("QDRANT_URL"),
+            api_key=os.getenv("QDRANT_API_KEY"),
+            collection_name=os.getenv("QDRANT_COLLECTION"),
             embedding=embedding_model
         )
         print("Indexing of Documents Done...")
         return True
     except Exception as e:
+        import traceback
         print(f"Error processing PDF file: {e}")
+        traceback.print_exc()
         return False
 
 def process_web_url_content(pages_content: str):
@@ -56,9 +59,9 @@ def process_web_url_content(pages_content: str):
         # Using [embedding_model] create embeddings of [split_docs] and store in DB
         vector_store = QdrantVectorStore.from_texts(
             texts=split_contents,
-            url="https://d166e4e5-a5d6-4547-92fa-a72bd2e46f50.europe-west3-0.gcp.cloud.qdrant.io:6333", 
-            api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.RMPCpZQEUzQURo0N_Bxo7bQTvu4VOJdpm79eHD-Itw0",
-            collection_name="learning_vectors1",
+            url=os.getenv("QDRANT_URL"),
+            api_key=os.getenv("QDRANT_API_KEY"),
+            collection_name=os.getenv("QDRANT_COLLECTION"),
             embedding=embedding_model
         )
         print("Indexing of Documents Done...")

@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from langchain_qdrant import QdrantVectorStore
 from langchain_openai import OpenAIEmbeddings
@@ -13,13 +14,21 @@ embedding_model = OpenAIEmbeddings(
 )
 
 vector_db = QdrantVectorStore.from_existing_collection(
-    url="https://d166e4e5-a5d6-4547-92fa-a72bd2e46f50.europe-west3-0.gcp.cloud.qdrant.io:6333", 
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.RMPCpZQEUzQURo0N_Bxo7bQTvu4VOJdpm79eHD-Itw0",
-    collection_name="learning_vectors",
+    url=os.getenv("QDRANT_URL"),
+    api_key=os.getenv("QDRANT_API_KEY"),
+    collection_name=os.getenv("QDRANT_COLLECTION"),
     embedding=embedding_model
 )
 def get_query_result_pdf(query):
     search_results = vector_db.similarity_search(query)
+    
+
+    print("Search results for PDF query:---------------->", search_results)
+
+    # if not search_results or all(query.lower() not in doc.page_content.lower() for doc in search_results):
+    #     # here we can make llm call to clarify or inform no info found
+    #     # generate 2–3 alternative phrasings
+    #     return "Sorry, I couldn't find any relevant information in the PDF for your query."
 
     context = "".join([f"Page Content: {result.page_content}\n Page Number:{result.metadata['page_label']}" for result in search_results])
     print("System propmt is ready---")

@@ -40,14 +40,14 @@ def chat_api(request: ChatRequest):
     result=get_query_result_pdf(user_message)
     return {"reply":result}  
 
-@app.post("/web_url_chat", response_model=ChatResponse)
+@app.post("/web_url_chat", response_model=ChatResponse) 
 def chat_api(request: ChatRequest):
     print("Received request:", request)
     print("User message:", request.message)
     user_message = request.message
     result=get_query_result_web(user_message)
     return {"reply":result}   
-
+ 
 
 
 @app.post("/upload")
@@ -111,4 +111,7 @@ async def process_web_url(payload: UrlPayload):
         print(f"Exception in /web-url: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
+
+# uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# uvicorn main:app --reload --host 0.0.0.0 --port 9000
  

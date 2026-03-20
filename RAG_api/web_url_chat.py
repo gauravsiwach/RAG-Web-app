@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from langchain_qdrant import QdrantVectorStore
 from langchain_openai import OpenAIEmbeddings
@@ -13,9 +14,9 @@ embedding_model = OpenAIEmbeddings(
 )
 
 vector_db = QdrantVectorStore.from_existing_collection(
-    url="https://d166e4e5-a5d6-4547-92fa-a72bd2e46f50.europe-west3-0.gcp.cloud.qdrant.io:6333", 
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.RMPCpZQEUzQURo0N_Bxo7bQTvu4VOJdpm79eHD-Itw0",
-    collection_name="learning_vectors1",
+    url=os.getenv("QDRANT_URL"),
+    api_key=os.getenv("QDRANT_API_KEY"),
+    collection_name=os.getenv("QDRANT_COLLECTION"),
     embedding=embedding_model
 )
 def get_query_result_web(query):
@@ -37,7 +38,7 @@ def get_query_result_web(query):
         Context:
         {context}
     """
-
+    print("Calling OpenAI API for completion...", SYSTEM_PROMPT)
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[

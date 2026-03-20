@@ -98,7 +98,13 @@ const DashboardLayout = () => {
     setSending(true);
 
     try {
-      const response = await fetch("http://localhost:8000/pdf_chat", {
+      // Select endpoint based on mode
+      const endpoint =
+        mode === "pdf"
+          ? "http://localhost:8000/pdf_chat"
+          : "http://localhost:8000/web_url_chat";
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMessage.text }),
