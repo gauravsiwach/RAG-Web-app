@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "./config";
 
 const ApiStatusBadge = () => {
   const [apiStatus, setApiStatus] = useState("checking"); // "checking" | "online" | "offline"
@@ -6,7 +7,7 @@ const ApiStatusBadge = () => {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch("http://localhost:8000/health", {
+        const res = await fetch(`${API_BASE_URL}/health`, {
           signal: AbortSignal.timeout(4000),
         });
         setApiStatus(res.ok ? "online" : "offline");
