@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import PdfUploader from "./PdfUploader";
 import WebUrlInput from "./WebUrlInput";
+import ApiStatusBadge from "./ApiStatusBadge";
+import UseExistingToggle from "./UseExistingToggle";
+import { API_BASE_URL } from "./config";
 
 const styles = {
   container: {
@@ -72,6 +75,28 @@ const DashboardLayout = () => {
   const [sending, setSending] = useState(false);
 
   const [mode, setMode] = useState("pdf");
+  const [useExisting, setUseExisting] = useState(false);
+
+  const handleUseExistingChange = (e) => {
+    const checked = e.target.checked;
+    setUseExisting(checked);
+    if (checked) {
+      setIsFileProcessed(true);
+      setChatHistory([
+        {
+          id: Date.now(),
+          sender: "bot",
+          text:
+            mode === "pdf"
+              ? "💾 Using existing indexed PDF. Ask your question!"
+              : "💾 Using existing indexed web data. Ask your question!",
+        },
+      ]);
+    } else {
+      setIsFileProcessed(false);
+      setChatHistory([]);
+    }
+  };
 
   const [chunkSize, setChunkSize] = useState(1000);
   const [chunkOverlap, setChunkOverlap] = useState(200);
@@ -101,8 +126,8 @@ const DashboardLayout = () => {
       // Select endpoint based on mode
       const endpoint =
         mode === "pdf"
-          ? "http://localhost:8000/pdf_chat"
-          : "http://localhost:8000/web_url_chat";
+          ? `${API_BASE_URL}/pdf_chat`
+          : `${API_BASE_URL}/web_url_chat`;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -177,7 +202,10 @@ const DashboardLayout = () => {
         `}</style>
 
       <div style={styles.sidebar}>
-        <h2>Source Configuration</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Source Configuration</h2>
+          <ApiStatusBadge />
+        </div>
 
         <div style={{ marginBottom: "20px" }}>
           <label
@@ -255,6 +283,7 @@ const DashboardLayout = () => {
                   setMode(e.target.value);
                   setIsFileProcessed(false);
                   setChatHistory([]);
+                  setUseExisting(false);
                 }}
                 style={{ marginRight: "8px" }}
               />
@@ -270,6 +299,7 @@ const DashboardLayout = () => {
                   setMode(e.target.value);
                   setIsFileProcessed(false);
                   setChatHistory([]);
+                  setUseExisting(false);
                 }}
                 style={{ marginRight: "8px" }}
               />
@@ -278,10 +308,18 @@ const DashboardLayout = () => {
           </div>
         </div>
 
-        {mode === "pdf" ? (
-          <PdfUploader onFileProcessed={handleFileProcessed} />
-        ) : (
-          <WebUrlInput onProcessed={handleWebProcessed} />
+        <UseExistingToggle
+          checked={useExisting}
+          mode={mode}
+          onChange={handleUseExistingChange}
+        />
+
+        {!useExisting && (
+          mode === "pdf" ? (
+            <PdfUploader onFileProcessed={handleFileProcessed} />
+          ) : (
+            <WebUrlInput onProcessed={handleWebProcessed} />
+          )
         )}
       </div>
 
@@ -296,7 +334,9 @@ const DashboardLayout = () => {
                 marginTop: "20px",
               }}
             >
-              📄 Please upload and process a PDF to start chatting.
+              {mode === "pdf"
+                ? '📄 Please upload and process a PDF, or check "Use existing indexed file" to chat with previously indexed data.'
+                : '🌐 Please enter and process a Web URL, or check "Use existing indexed file" to chat with previously indexed data.'}
             </div>
           )}
 

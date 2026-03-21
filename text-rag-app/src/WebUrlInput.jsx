@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE_URL } from "./config";
 
 const WebUrlInput = ({ onProcessed }) => {
   const [webUrl, setWebUrl] = useState("");
@@ -12,7 +13,7 @@ const WebUrlInput = ({ onProcessed }) => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8000/web-url", {
+      const response = await fetch(`${API_BASE_URL}/web-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

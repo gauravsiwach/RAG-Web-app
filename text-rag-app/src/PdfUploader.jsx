@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_BASE_URL } from "./config";
 
 const PdfUploader = ({ onFileProcessed }) => {
   const [file, setFile] = useState(null);
@@ -50,7 +51,7 @@ const PdfUploader = ({ onFileProcessed }) => {
       formData.append("chunk_size", chunkSize);
       formData.append("chunk_overlap", chunkOverlap);
 
-      const response = await fetch("http://localhost:8000/upload", {
+      const response = await fetch(`${API_BASE_URL}/upload`, {
         method: "POST",
         body: formData,
       });
