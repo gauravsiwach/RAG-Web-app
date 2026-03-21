@@ -25,6 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "RAG API is running"}
+
 # Request model
 class ChatRequest(BaseModel):
     message: str
