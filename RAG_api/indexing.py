@@ -26,12 +26,23 @@ def process_pdfFile(file_path):
             model="text-embedding-3-large"
         )
 
+        # Remove old collection if it exists
+        from qdrant_client import QdrantClient
+        qdrant_url = os.getenv("QDRANT_URL")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
+        qdrant_collection = os.getenv("QDRANT_COLLECTION")
+        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        collections = client.get_collections().collections
+        if qdrant_collection in [c.name for c in collections]:
+            print(f"Deleting old collection: {qdrant_collection}")
+            client.delete_collection(collection_name=qdrant_collection)
+
         # Using [embedding_model] create embeddings of [split_docs] and store in DB
         vector_store = QdrantVectorStore.from_documents(
             documents=split_docs,
-            url=os.getenv("QDRANT_URL"),
-            api_key=os.getenv("QDRANT_API_KEY"),
-            collection_name=os.getenv("QDRANT_COLLECTION"),
+            url=qdrant_url,
+            api_key=qdrant_api_key,
+            collection_name=qdrant_collection,
             embedding=embedding_model
         )
         print("Indexing of Documents Done...")
