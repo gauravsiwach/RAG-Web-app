@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import PdfUploader from "./PdfUploader";
 import WebUrlInput from "./WebUrlInput";
+import JsonUploader from "./JsonUploader";
 import ApiStatusBadge from "./ApiStatusBadge";
 import UseExistingToggle from "./UseExistingToggle";
+import JsonResultRenderer from "./JsonResultRenderer";
 import { API_BASE_URL } from "./config";
 
 const styles = {
@@ -89,6 +91,8 @@ const DashboardLayout = () => {
           text:
             mode === "pdf"
               ? "💾 Using existing indexed PDF. Ask your question!"
+              : mode === "json"
+              ? "💾 Using existing indexed JSON. Ask your question!"
               : "💾 Using existing indexed web data. Ask your question!",
         },
       ]);
@@ -127,6 +131,8 @@ const DashboardLayout = () => {
       const endpoint =
         mode === "pdf"
           ? `${API_BASE_URL}/pdf_chat`
+          : mode === "json"
+          ? `${API_BASE_URL}/json_chat`
           : `${API_BASE_URL}/web_url_chat`;
 
       const response = await fetch(endpoint, {
@@ -185,6 +191,16 @@ const DashboardLayout = () => {
       },
     ]);
   };
+  const handleJsonProcessed = () => {
+    setIsFileProcessed(true);
+    setChatHistory([
+      {
+        id: Date.now(),
+        sender: "bot",
+        text: "🗂️ JSON indexed! Ask a question based on the uploaded JSON data.",
+      },
+    ]);
+  };
 
   return (
     <div style={styles.container}>
@@ -207,7 +223,7 @@ const DashboardLayout = () => {
           <ApiStatusBadge />
         </div>
 
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "0px" }}>
           <label
             style={{
               display: "flex",
@@ -269,42 +285,50 @@ const DashboardLayout = () => {
           )}
         </div>
 
-        <div style={{ marginBottom: "20px" }}>
-          <label style={{ display: "block", marginBottom: "6px" }}>
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontSize: 13, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Choose Source Type
           </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <label>
-              <input
-                type="radio"
-                value="pdf"
-                checked={mode === "pdf"}
-                onChange={(e) => {
-                  setMode(e.target.value);
-                  setIsFileProcessed(false);
-                  setChatHistory([]);
-                  setUseExisting(false);
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            {[
+              { value: "pdf",  icon: "📄", label: "PDF File"  },
+              { value: "web",  icon: "🌐", label: "Web URL"   },
+              { value: "json", icon: "🗂️", label: "JSON File" },
+            ].map(({ value, icon, label }) => (
+              <label
+                key={value}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  cursor: "pointer",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: mode === value ? 600 : 400,
+                  backgroundColor: mode === value ? "#2563eb" : "#334155",
+                  border: mode === value ? "1px solid #3b82f6" : "1px solid #475569",
+                  color: mode === value ? "#fff" : "#cbd5e1",
+                  transition: "all 0.15s",
+                  userSelect: "none",
                 }}
-                style={{ marginRight: "8px" }}
-              />
-              📄 PDF File
-            </label>
-
-            <label>
-              <input
-                type="radio"
-                value="web"
-                checked={mode === "web"}
-                onChange={(e) => {
-                  setMode(e.target.value);
-                  setIsFileProcessed(false);
-                  setChatHistory([]);
-                  setUseExisting(false);
-                }}
-                style={{ marginRight: "8px" }}
-              />
-              🌐 Web URL
-            </label>
+              >
+                <input
+                  type="radio"
+                  value={value}
+                  checked={mode === value}
+                  onChange={(e) => {
+                    setMode(e.target.value);
+                    setIsFileProcessed(false);
+                    setChatHistory([]);
+                    setUseExisting(false);
+                  }}
+                  style={{ display: "none" }}
+                />
+                <span>{icon}</span>
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -317,6 +341,8 @@ const DashboardLayout = () => {
         {!useExisting && (
           mode === "pdf" ? (
             <PdfUploader onFileProcessed={handleFileProcessed} />
+          ) : mode === "json" ? (
+            <JsonUploader onFileProcessed={handleJsonProcessed} />
           ) : (
             <WebUrlInput onProcessed={handleWebProcessed} />
           )
@@ -324,7 +350,13 @@ const DashboardLayout = () => {
       </div>
 
       <div style={styles.chat}>
-        <div style={styles.chatHeader}>Ask Your PDF (RAG Chatbot)</div>
+        <div style={styles.chatHeader}>
+          {mode === "pdf"
+            ? "Ask Your PDF (RAG Chatbot)"
+            : mode === "json"
+            ? "Ask Your JSON (RAG Chatbot)"
+            : "Ask Your Web Page (RAG Chatbot)"}
+        </div>
         <div style={styles.chatMessages} id="chatMessages">
           {!isFileProcessed && chatHistory.length === 0 && (
             <div
@@ -336,36 +368,43 @@ const DashboardLayout = () => {
             >
               {mode === "pdf"
                 ? '📄 Please upload and process a PDF, or check "Use existing indexed file" to chat with previously indexed data.'
+                : mode === "json"
+                ? '🗂️ Please upload and process a JSON file, or check "Use existing indexed file" to chat with previously indexed data.'
                 : '🌐 Please enter and process a Web URL, or check "Use existing indexed file" to chat with previously indexed data.'}
             </div>
           )}
 
           {chatHistory.map(({ id, sender, text }) => (
-            <p
+            <div
               key={id}
               style={{
                 display: "flex",
-                alignItems: "center",
                 justifyContent: sender === "user" ? "flex-end" : "flex-start",
-                backgroundColor: sender === "user" ? "#2563eb" : "#e2e8f0",
-                color: sender === "user" ? "white" : "black",
-                padding: "8px",
-                borderRadius: "8px",
-                maxWidth: "60%",
                 margin: "5px 0",
-                alignSelf: sender === "user" ? "flex-end" : "flex-start",
               }}
             >
-              <span
+              {sender === "bot" && (
+                <span style={{ marginRight: 8, flexShrink: 0 }}>🤖</span>
+              )}
+              <div
                 style={{
-                  marginRight: sender === "user" ? "0" : "8px",
-                  marginLeft: sender === "user" ? "8px" : "0",
+                  backgroundColor: sender === "user" ? "#2563eb" : "#e2e8f0",
+                  color: sender === "user" ? "white" : "black",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  maxWidth: sender === "user" ? "60%" : "80%",
                 }}
               >
-                {sender === "user" ? "👤" : "🤖"}
-              </span>
-              <span>{text}</span>
-            </p>
+                {sender === "bot" && mode === "json" ? (
+                  <JsonResultRenderer text={text} />
+                ) : (
+                  <span>{text}</span>
+                )}
+              </div>
+              {sender === "user" && (
+                <span style={{ marginLeft: 8, flexShrink: 0 }}>👤</span>
+              )}
+            </div>
           ))}
 
           {sending && (
