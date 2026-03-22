@@ -21,7 +21,7 @@ def get_query_result_pdf(query):
 
         # Step 2: Search vector DB with all translated queries,
         # filter by relevance score, deduplicate, and rank results
-        search_results = search_and_filter(translated_queries)
+        search_results = search_and_filter(translated_queries, collection_suffix="pdf")
 
         if not search_results:
             return "Sorry, I couldn't find any relevant information for your query in this PDF. Try asking something related to the document content."

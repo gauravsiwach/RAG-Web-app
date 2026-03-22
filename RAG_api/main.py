@@ -10,8 +10,10 @@ import os
 
 from indexing import process_pdfFile
 from indexing import process_web_url_content
+from indexing import process_json_file
 from pdf_chat import get_query_result_pdf
 from web_url_chat import get_query_result_web
+from json_chat import get_query_result_json
 from web_crawler import crawl_webpage
 from web_crawler import crawl_all_pages
 
@@ -51,7 +53,13 @@ def chat_api(request: ChatRequest):
     user_message = request.message
     result=get_query_result_web(user_message)
     return {"reply":result}   
- 
+
+@app.post("/json_chat", response_model=ChatResponse)
+def json_chat_api(request: ChatRequest):
+    print("Received request:", request)
+    print("User message:", request.message)
+    result = get_query_result_json(request.message)
+    return {"reply": result}
 
 
 @app.post("/upload")
@@ -83,6 +91,41 @@ def upload_file(file: UploadFile = File(...)):
                      }
         )       
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+
+@app.post("/upload-json")
+def upload_json_file(file: UploadFile = File(...)):
+    try:
+        if not file.filename.endswith(".json"):
+            raise HTTPException(status_code=400, detail="Only .json files are allowed.")
+
+        os.makedirs("uploaded_files", exist_ok=True)
+
+        file_content = file.file.read()
+        file_path = f"uploaded_files/{file.filename}"
+        with open(file_path, "wb") as f:
+            bytes_written = f.write(file_content)
+
+        if bytes_written == 0:
+            raise HTTPException(status_code=500, detail="Failed to write file content.")
+
+        result = process_json_file(file_path)
+
+        if result is False:
+            raise HTTPException(status_code=500, detail="Failed to process the JSON file.")
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "filename": file.filename,
+                "size": bytes_written,
+                "message": "JSON file uploaded and indexed successfully."
+            }
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
