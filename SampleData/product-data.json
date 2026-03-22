@@ -1,0 +1,85 @@
+{
+  "totalProducts": 50,
+  "categories": [
+    {
+      "categoryId": "C1",
+      "categoryName": "Beverages",
+      "products": [
+        { "productId": "P1",  "productName": "Coca-Cola 250ml",         "brand": "Coca-Cola",  "price": 20,  "currency": "INR", "taste": "Sweet, fizzy, bold caramel-cola flavour with a refreshing bite",              "promotions": [{"type":"Discount","desc":"5% Off"}]},
+        { "productId": "P2",  "productName": "Coca-Cola 500ml",         "brand": "Coca-Cola",  "price": 40,  "currency": "INR", "taste": "Sweet, fizzy, bold caramel-cola flavour with a refreshing bite",              "promotions": [{"type":"BuyXGetY","desc":"Buy 2 Get 1"}]},
+        { "productId": "P3",  "productName": "Pepsi 250ml",             "brand": "Pepsi",      "price": 20,  "currency": "INR", "taste": "Lighter, sweeter cola with a subtle citrusy finish",                          "promotions": []},
+        { "productId": "P4",  "productName": "Pepsi 1L",                "brand": "Pepsi",      "price": 65,  "currency": "INR", "taste": "Lighter, sweeter cola with a subtle citrusy finish",                          "promotions": [{"type":"Flat","desc":"₹5 Off"}]},
+        { "productId": "P5",  "productName": "Sprite 500ml",            "brand": "Coca-Cola",  "price": 38,  "currency": "INR", "taste": "Crisp, clean lemon-lime flavour with a cool, effervescent finish",            "promotions": []},
+        { "productId": "P6",  "productName": "Fanta Orange 500ml",      "brand": "Coca-Cola",  "price": 38,  "currency": "INR", "taste": "Bold, sweet orange burst with a playful fruity fizz",                        "promotions": []},
+        { "productId": "P7",  "productName": "Red Bull 250ml",          "brand": "Red Bull",   "price": 125, "currency": "INR", "taste": "Sweet-tangy with a citrusy, slightly herbal energy kick",                     "promotions": []},
+        { "productId": "P8",  "productName": "Tropicana Orange Juice 1L","brand": "Tropicana", "price": 110, "currency": "INR", "taste": "Fresh, pulpy orange with natural sweetness and a mild tart edge",            "promotions": [{"type":"Discount","desc":"10% Off"}]},
+        { "productId": "P9",  "productName": "Real Mango Juice 1L",     "brand": "Real",       "price": 105, "currency": "INR", "taste": "Thick, sweet Alphonso mango flavour with a rich tropical aroma",             "promotions": []},
+        { "productId": "P10", "productName": "Bisleri Water 1L",        "brand": "Bisleri",    "price": 20,  "currency": "INR", "taste": "Clean, neutral, and tasteless purified mineral water",                       "promotions": []}
+      ]
+    },
+    {
+      "categoryId": "C2",
+      "categoryName": "Snacks",
+      "products": [
+        { "productId": "P11", "productName": "Lay's Classic 50g",       "brand": "Lay's",       "price": 10,  "currency": "INR", "taste": "Light, salty, crispy with a classic buttery potato flavour",                "promotions": []},
+        { "productId": "P12", "productName": "Lay's Magic Masala 100g", "brand": "Lay's",       "price": 20,  "currency": "INR", "taste": "Tangy, spicy masala with a zesty blend of Indian spices",                  "promotions": [{"type":"Combo","desc":"3 for 50"}]},
+        { "productId": "P13", "productName": "Kurkure Masala Munch",    "brand": "Kurkure",     "price": 20,  "currency": "INR", "taste": "Crunchy, tangy and spicy with a bold masala punch",                         "promotions": []},
+        { "productId": "P14", "productName": "Doritos Nacho Cheese",    "brand": "Doritos",     "price": 50,  "currency": "INR", "taste": "Rich, cheesy with a bold cheddar bite and a corn crunch",                  "promotions": []},
+        { "productId": "P15", "productName": "Haldiram Bhujia 200g",    "brand": "Haldiram",    "price": 60,  "currency": "INR", "taste": "Crunchy, mildly spiced gram flour with a savoury peppery hint",             "promotions": []},
+        { "productId": "P16", "productName": "Bingo Mad Angles",        "brand": "Bingo",       "price": 20,  "currency": "INR", "taste": "Tangy, spicy triangular crackers with a distinctive crunchy texture",       "promotions": []},
+        { "productId": "P17", "productName": "Pringles Original",       "brand": "Pringles",    "price": 110, "currency": "INR", "taste": "Lightly salted, uniform crispy chips with a mild buttery potato flavour",   "promotions": [{"type":"Discount","desc":"5% Off"}]},
+        { "productId": "P18", "productName": "Uncle Chips",             "brand": "Uncle Chips", "price": 20,  "currency": "INR", "taste": "Classic salted potato, crispy with a subtle spice and rustic home-fried feel","promotions": []},
+        { "productId": "P19", "productName": "Too Yumm Chips",          "brand": "Too Yumm",    "price": 30,  "currency": "INR", "taste": "Baked, light and airy with mild spice — a guilt-free snack",               "promotions": []},
+        { "productId": "P20", "productName": "Balaji Wafers",           "brand": "Balaji",      "price": 25,  "currency": "INR", "taste": "Crispy wafers with a tangy, regional Indian masala-spiced flavour",         "promotions": []}
+      ]
+    },
+    {
+      "categoryId": "C3",
+      "categoryName": "Personal Care",
+      "products": [
+        { "productId": "P21", "productName": "Dove Shampoo 180ml",       "brand": "Dove",        "price": 180, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P22", "productName": "Clinic Plus Shampoo",      "brand": "Clinic Plus", "price": 120, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P23", "productName": "Pantene Shampoo",          "brand": "Pantene",     "price": 170, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P24", "productName": "Head & Shoulders",         "brand": "H&S",         "price": 190, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P25", "productName": "Colgate Toothpaste 200g",  "brand": "Colgate",     "price": 120, "currency": "INR", "taste": "N/A — not a food product", "promotions": [{"type":"Bundle","desc":"Free Brush"}]},
+        { "productId": "P26", "productName": "Closeup Toothpaste",       "brand": "Closeup",     "price": 110, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P27", "productName": "Lux Soap",                 "brand": "Lux",         "price": 35,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P28", "productName": "Dettol Soap",              "brand": "Dettol",      "price": 40,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P29", "productName": "Lifebuoy Soap",            "brand": "Lifebuoy",    "price": 30,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P30", "productName": "Nivea Cream",              "brand": "Nivea",       "price": 150, "currency": "INR", "taste": "N/A — not a food product", "promotions": []}
+      ]
+    },
+    {
+      "categoryId": "C4",
+      "categoryName": "Dairy",
+      "products": [
+        { "productId": "P31", "productName": "Amul Milk 1L",             "brand": "Amul",           "price": 60,  "currency": "INR", "taste": "Mild, creamy and slightly sweet with a fresh full-fat dairy richness",         "promotions": []},
+        { "productId": "P32", "productName": "Mother Dairy Milk",        "brand": "Mother Dairy",   "price": 58,  "currency": "INR", "taste": "Clean, fresh and mildly sweet dairy flavour with a smooth finish",              "promotions": []},
+        { "productId": "P33", "productName": "Amul Butter 500g",         "brand": "Amul",           "price": 250, "currency": "INR", "taste": "Rich, creamy and mildly salty with a smooth melt-in-mouth butter flavour",     "promotions": []},
+        { "productId": "P34", "productName": "Amul Cheese Slices",       "brand": "Amul",           "price": 120, "currency": "INR", "taste": "Mild, creamy and slightly salty processed cheese with a soft texture",          "promotions": []},
+        { "productId": "P35", "productName": "Nestle Milkmaid",          "brand": "Nestle",         "price": 130, "currency": "INR", "taste": "Intensely sweet, thick condensed milk with a warm caramel-vanilla note",       "promotions": []},
+        { "productId": "P36", "productName": "Britannia Cheese",         "brand": "Britannia",      "price": 110, "currency": "INR", "taste": "Mild, slightly tangy with a smooth, creamy processed cheese flavour",           "promotions": []},
+        { "productId": "P37", "productName": "Amul Ice Cream",           "brand": "Amul",           "price": 150, "currency": "INR", "taste": "Creamy, sweet vanilla with a rich, indulgent dairy finish",                    "promotions": []},
+        { "productId": "P38", "productName": "Kwality Walls Ice Cream",  "brand": "Kwality Walls",  "price": 160, "currency": "INR", "taste": "Sweet and creamy with diverse fruity, chocolatey and nutty flavour options",  "promotions": []},
+        { "productId": "P39", "productName": "Yakult Drink",             "brand": "Yakult",         "price": 90,  "currency": "INR", "taste": "Sweet, lightly tangy fermented probiotic drink with a subtle fruity undertone","promotions": []},
+        { "productId": "P40", "productName": "Epigamia Yogurt",          "brand": "Epigamia",       "price": 80,  "currency": "INR", "taste": "Creamy, mildly tangy Greek yogurt with a fresh, thick and smooth texture",    "promotions": []}
+      ]
+    },
+    {
+      "categoryId": "C5",
+      "categoryName": "Household",
+      "products": [
+        { "productId": "P41", "productName": "Surf Excel 1kg",       "brand": "Surf Excel",  "price": 210, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P42", "productName": "Ariel Detergent",      "brand": "Ariel",       "price": 200, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P43", "productName": "Tide Powder",          "brand": "Tide",        "price": 180, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P44", "productName": "Vim Dishwash",         "brand": "Vim",         "price": 50,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P45", "productName": "Harpic Cleaner",       "brand": "Harpic",      "price": 90,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P46", "productName": "Lizol Floor Cleaner",  "brand": "Lizol",       "price": 150, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P47", "productName": "Colin Glass Cleaner",  "brand": "Colin",       "price": 90,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P48", "productName": "Good Knight Liquid",   "brand": "Good Knight", "price": 75,  "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P49", "productName": "Hit Spray",            "brand": "Hit",         "price": 120, "currency": "INR", "taste": "N/A — not a food product", "promotions": []},
+        { "productId": "P50", "productName": "Dettol Liquid",        "brand": "Dettol",      "price": 180, "currency": "INR", "taste": "N/A — not a food product", "promotions": []}
+      ]
+    }
+  ]
+}

@@ -1,52 +1,57 @@
 import os
 from dotenv import load_dotenv
-from langchain_qdrant import QdrantVectorStore
-from langchain_openai import OpenAIEmbeddings
 from openai import OpenAI
+from query_translation import translate_query
+from vector_search import search_and_filter
 
 load_dotenv()
 
 client = OpenAI()
 
-# Vector Embeddings
-embedding_model = OpenAIEmbeddings(
-    model="text-embedding-3-large"
-)
 
-vector_db = QdrantVectorStore.from_existing_collection(
-    url=os.getenv("QDRANT_URL"),
-    api_key=os.getenv("QDRANT_API_KEY"),
-    collection_name=os.getenv("QDRANT_COLLECTION"),
-    embedding=embedding_model
-)
 def get_query_result_web(query):
-    print("Received query:", query)
-    search_results = vector_db.similarity_search(query)
-    # for i, result in enumerate(search_results):
-    #     print(f"\n--- Result {i+1} ---")
-    #     print("Page content:", result.page_content)
-    #     print("Metadata:", result.metadata)
-    # return "done"
-    
-    context = "".join([f"Page Content: {result.page_content}\n " for result in search_results])
-    print("System propmt is ready---")
-    SYSTEM_PROMPT = f"""
-        You are a helpfull AI Assistant who asnweres user query based on the available context
+    try:
+        print(f"\n🧠 Original query: '{query}'")
+
+        # Step 1: Translate query into multiple variants for better retrieval
+        translated_queries = translate_query(query)
+
+        # Step 2: Search vector DB with all translated queries,
+        # filter by relevance score, deduplicate, and rank results
+        search_results = search_and_filter(translated_queries, collection_suffix="url")
+
+        if not search_results:
+            return "Sorry, I couldn't find any relevant information for your query in this web page. Try asking something related to the page content."
+
+        # Step 3: Build context string from top unique results
+        context = "\n\n".join([
+            f"Page Content: {doc.page_content}"
+            for doc, score in search_results
+        ])
+
+        SYSTEM_PROMPT = f"""
+        You are a helpful AI Assistant who answers user queries based on the available context
         retrieved from a web page.
-        You should only ans the user based on the following context.
+
+        You should only answer the user based on the following context.
 
         Context:
         {context}
-    """
-    print("Calling OpenAI API for completion...", SYSTEM_PROMPT)
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            { "role": "system", "content": SYSTEM_PROMPT },
-            { "role": "user", "content": query },
-        ]
-    )
-    answer = response.choices[0].message.content
-    print(f"🤖: {answer}")
-    return answer
-     
+        """
+
+        # Step 4: Call OpenAI LLM with context + user query
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": query},
+            ]
+        )
+        answer = response.choices[0].message.content
+        print(f"\n🤖: {answer}")
+        return answer
+
+    except Exception as e:
+        print(f"❌ Error in get_query_result_web: {e}")
+        return "Sorry, there was an error processing your query. Please try again."
+

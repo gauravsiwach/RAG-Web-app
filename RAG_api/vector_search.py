@@ -2,7 +2,7 @@
 vector_search.py
 
 Handles vector DB search, relevance filtering, and deduplication.
-Used by pdf_chat.py and web_url_chat.py for retrieval.
+Used by pdf_chat.py, web_url_chat.py, and json_chat.py for retrieval.
 """
 
 import os
@@ -17,31 +17,38 @@ embedding_model = OpenAIEmbeddings(
     model="text-embedding-3-large"
 )
 
-# Connect to existing Qdrant collection
-vector_db = QdrantVectorStore.from_existing_collection(
-    url=os.getenv("QDRANT_URL"),
-    api_key=os.getenv("QDRANT_API_KEY"),
-    collection_name=os.getenv("QDRANT_COLLECTION"),
-    embedding=embedding_model
-)
-
 # Minimum similarity score to consider a result relevant.
 # Qdrant cosine similarity: 1.0 = identical, 0.0 = unrelated.
 RELEVANCE_THRESHOLD = 0.4
 
 
-def search_and_filter(translated_queries: list[str]) -> list[tuple]:
+def _get_vector_db(collection_suffix: str) -> QdrantVectorStore:
+    """Connect to the Qdrant collection for the given source type."""
+    base = os.getenv("QDRANT_COLLECTION")
+    collection_name = f"{base}_{collection_suffix}"
+    return QdrantVectorStore.from_existing_collection(
+        url=os.getenv("QDRANT_URL"),
+        api_key=os.getenv("QDRANT_API_KEY"),
+        collection_name=collection_name,
+        embedding=embedding_model,
+    )
+
+
+def search_and_filter(translated_queries: list[str], collection_suffix: str = "pdf") -> list[tuple]:
     """
-    Runs similarity search for each translated query, collects all results,
+    Runs similarity search for each translated query against the correct collection,
     applies relevance threshold filtering, deduplicates by content,
     and returns the top 5 unique (doc, score) tuples sorted by score descending.
 
     Args:
-        translated_queries: List of query strings (original + translated variants)
+        translated_queries:  List of query strings (original + translated variants)
+        collection_suffix:   Collection postfix to target — "pdf", "url", or "json"
 
     Returns:
         List of (Document, score) tuples — unique, relevant, ranked by score
     """
+    vector_db = _get_vector_db(collection_suffix)
+
     # Step 1: Run vector search for each query and collect all raw results
     all_raw_results: list[tuple] = []
     for q in translated_queries:
