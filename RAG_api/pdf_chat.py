@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from query_translation import translate_query
 from vector_search import search_and_filter
+from response_judge import evaluate_and_filter_response
 
 load_dotenv()
 
@@ -23,8 +24,8 @@ def get_query_result_pdf(query):
         # filter by relevance score, deduplicate, and rank results
         search_results = search_and_filter(translated_queries, collection_suffix="pdf")
 
-        if not search_results:
-            return "Sorry, I couldn't find any relevant information for your query in this PDF. Try asking something related to the document content."
+        # if not search_results:
+        #     return "Sorry, I couldn't find any relevant information for your query in this PDF. Try asking something related to the document content."
 
         # Step 3: Build context string from top unique results
         context = "\n\n".join([
@@ -53,7 +54,10 @@ def get_query_result_pdf(query):
         )
         answer = response.choices[0].message.content
         print(f"\n🤖: {answer}")
-        return answer
+        
+        # Step 5: Use LLM judge to evaluate response relevance
+        final_answer = evaluate_and_filter_response(query, answer, context)
+        return final_answer
 
     except Exception as e:
         print(f"❌ Error in get_query_result_pdf: {e}")
