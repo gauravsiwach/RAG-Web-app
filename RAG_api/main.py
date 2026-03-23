@@ -14,6 +14,7 @@ from indexing import process_json_file
 from pdf_chat import get_query_result_pdf
 from web_url_chat import get_query_result_web
 from json_chat import get_query_result_json
+from json_chat_hybrid import get_query_result_json_hybrid
 from web_crawler import crawl_webpage
 from web_crawler import crawl_all_pages
 
@@ -34,6 +35,7 @@ def health_check():
 # Request model
 class ChatRequest(BaseModel):
     message: str
+    version: str = "v2"  # "v1" = json_chat (Pandas+Vector), "v2" = json_chat_hybrid (Pure Qdrant)
 
 # Response model
 class ChatResponse(BaseModel):
@@ -58,7 +60,11 @@ def chat_api(request: ChatRequest):
 def json_chat_api(request: ChatRequest):
     print("Received request:", request)
     print("User message:", request.message)
-    result = get_query_result_json(request.message)
+    print(f"Chat engine version: {request.version}")
+    if request.version == "v1":
+        result = get_query_result_json(request.message)
+    else:  # v2 (default)
+        result = get_query_result_json_hybrid(request.message)
     return {"reply": result}
 
 

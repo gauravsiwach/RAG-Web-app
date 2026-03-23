@@ -78,6 +78,7 @@ const DashboardLayout = () => {
 
   const [mode, setMode] = useState("pdf");
   const [useExisting, setUseExisting] = useState(false);
+  const [jsonVersion, setJsonVersion] = useState("v2"); // "v1" or "v2"
 
   const handleUseExistingChange = (e) => {
     const checked = e.target.checked;
@@ -135,10 +136,13 @@ const DashboardLayout = () => {
           ? `${API_BASE_URL}/json_chat`
           : `${API_BASE_URL}/web_url_chat`;
 
+      const body = { message: userMessage.text };
+      if (mode === "json") body.version = jsonVersion;
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage.text }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok)
@@ -338,6 +342,40 @@ const DashboardLayout = () => {
           onChange={handleUseExistingChange}
         />
 
+        {mode === "json" && (
+          <div>
+            <label style={{ display: "block", marginBottom: "8px", fontSize: 13, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              JSON Chat Engine
+            </label>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {[
+                { value: "v1", label: "V1 Classic",  icon: "⚙️", desc: "Pandas + Vector" },
+                { value: "v2", label: "V2 Hybrid",   icon: "⚡", desc: "Pure Qdrant"    },
+              ].map(({ value, label, icon, desc }) => (
+                <button
+                  key={value}
+                  onClick={() => setJsonVersion(value)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 6px",
+                    borderRadius: 8,
+                    border: jsonVersion === value ? "2px solid #3b82f6" : "1px solid #475569",
+                    backgroundColor: jsonVersion === value ? "#1e40af" : "#334155",
+                    color: jsonVersion === value ? "#fff" : "#94a3b8",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: jsonVersion === value ? 700 : 400,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div>{icon} {label}</div>
+                  <div style={{ fontSize: 10, opacity: 0.8, marginTop: 2 }}>{desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!useExisting && (
           mode === "pdf" ? (
             <PdfUploader onFileProcessed={handleFileProcessed} />
@@ -354,7 +392,7 @@ const DashboardLayout = () => {
           {mode === "pdf"
             ? "Ask Your PDF (RAG Chatbot)"
             : mode === "json"
-            ? "Ask Your JSON (RAG Chatbot)"
+            ? `Ask Your JSON (RAG Chatbot) — ${jsonVersion === "v2" ? "⚡ V2 Hybrid (Pure Qdrant)" : "⚙️ V1 Classic (Pandas + Vector)"}`
             : "Ask Your Web Page (RAG Chatbot)"}
         </div>
         <div style={styles.chatMessages} id="chatMessages">

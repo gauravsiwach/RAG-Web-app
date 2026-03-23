@@ -1,40 +1,58 @@
 # RAG Chatbot Web Application
 
-A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that allows users to upload PDFs or provide web URLs, then ask intelligent questions about the content using AI-powered responses.
+A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports intelligent Q&A over PDFs, web pages, and structured JSON data — powered by OpenAI GPT-4o-mini and Qdrant vector search.
 
 ---
 
 ## 🌟 Features
 
-- 📄 **PDF Upload & Processing** — Upload PDFs up to 50MB with drag-and-drop
-- 🌐 **Web URL Crawling** — Extract and process content from any public web page
-- 🧠 **Query Translation Pipeline** — Expands queries using Multi-Query, Step-Back, and Sub-Query strategies for better retrieval
-- 🔍 **Relevance Filtering** — Cosine similarity threshold prevents passing unrelated context to the LLM
-- 💬 **Intelligent Chat Interface** — Context-aware Q&A with page number references
-- ⚙️ **Configurable Text Chunking** — Adjust chunk size (100–4000) and overlap (0–1000)
-- 🚫 **Duplicate Removal** — Automatically deduplicates retrieved chunks before context building
+| Feature | Description |
+|---------|-------------|
+| 📄 **PDF Upload & Chat** | Upload PDFs up to 50MB via drag-and-drop. Documents are chunked, embedded, and stored in Qdrant for semantic Q&A. |
+| 🌐 **Web URL Crawling** | Scrape any public web page using async httpx + BeautifulSoup, then index and chat with its content. |
+| 🗂️ **JSON Data Chat — V1 Classic** | Upload structured product JSON; query it with Pandas DataFrame filtering + LangChain vector search. |
+| ⚡ **JSON Data Chat — V2 Hybrid** | Same data, upgraded engine: single Qdrant `query_points()` call combining semantic vector + structured metadata filters. |
+| 🧠 **Multi-Query Translation** | Each query is expanded into 4 variants before retrieval. Results are merged, deduplicated, and ranked to maximize recall. |
+| 🔀 **Smart Query Routing** | LLM-based classifier (`query_classifier.py`) detects whether a query is STRUCTURED, SEMANTIC, or HYBRID and routes accordingly. |
+| 🔍 **Relevance Filtering** | Cosine similarity threshold (≥ 0.4) filters out low-quality chunks before they reach the LLM, reducing hallucinations. |
+| ⚖️ **LLM-as-Judge** | After every response, a second LLM call rates relevance. If the answer is off-topic, a polite fallback is returned instead. |
+| 💬 **Structured JSON Responses** | JSON chat responses use a `{summary, data[], columns[]}` schema that auto-renders as styled HTML tables in the UI. |
+| ⚙️ **Configurable Chunking** | Chunk size (100–4000) and overlap (0–1000) are adjustable from the sidebar before indexing. |
+| 🚫 **Duplicate Removal** | Retrieved chunks are deduplicated across all query variants before context is built for the LLM. |
+| 💾 **Use Existing Data** | A toggle lets users skip re-upload and chat with previously indexed data directly. |
 
 ---
 
 ## 🏗️ Architecture
 
-### Backend (RAG_api) — Python FastAPI
-| File | Responsibility |
-|------|---------------|
-| `main.py` | FastAPI server, 4 API endpoints, CORS config |
-| `pdf_chat.py` | PDF query handler — orchestrates translation → search → LLM |
-| `web_url_chat.py` | Web URL query handler |
-| `query_translation.py` | 3 query translation strategies (Multi-Query, Step-Back, Sub-Query) |
-| `vector_search.py` | Similarity search, relevance filtering, deduplication |
-| `indexing.py` | Document chunking, embedding, Qdrant vector storage |
-| `web_crawler.py` | Async web scraping with httpx and BeautifulSoup |
+### Backend (`RAG_api/`) — Python FastAPI
 
-### Frontend (text-rag-app) — React + Vite
 | File | Responsibility |
 |------|---------------|
-| `DashboardLayout.jsx` | Main 2-column layout (sidebar + chat), mode switching, state management |
-| `PdfUploader.jsx` | Drag-and-drop PDF upload, validation, processing |
-| `WebUrlInput.jsx` | URL input form and processing |
+| `main.py` | FastAPI server, 7 API endpoints, CORS config, V1/V2 routing |
+| `indexing.py` | Document chunking, embedding, Qdrant storage, payload index creation |
+| `pdf_chat.py` | PDF query orchestration: translate → search → LLM → judge |
+| `web_url_chat.py` | Web URL query: translate → search → LLM |
+| `json_chat.py` | **JSON V1**: Pandas filtering + vector search |
+| `json_chat_hybrid.py` | **JSON V2**: Pure Qdrant hybrid (semantic + structured filters) |
+| `query_translation.py` | Multi-Query: generates 4 query variants for better retrieval |
+| `query_classifier.py` | LLM-based query classification (STRUCTURED / SEMANTIC / HYBRID) |
+| `vector_search.py` | Similarity search, relevance filter (≥ 0.4), deduplication, top-5 |
+| `response_judge.py` | LLM-as-Judge: validates response relevance, returns fallback if needed |
+| `web_crawler.py` | Async web scraping (httpx + BeautifulSoup) |
+
+### Frontend (`text-rag-app/src/`) — React 19 + Vite
+
+| Component | Responsibility |
+|-----------|---------------|
+| `DashboardLayout.jsx` | Main 2-column layout, mode switching, V1/V2 toggle, chat state |
+| `PdfUploader.jsx` | Drag-and-drop PDF upload with 50MB validation and toast feedback |
+| `WebUrlInput.jsx` | URL input form with async processing |
+| `JsonUploader.jsx` | JSON file upload with last-indexed timestamp |
+| `JsonResultRenderer.jsx` | Renders structured `{summary, data[], columns[]}` as HTML tables |
+| `ApiStatusBadge.jsx` | Health check indicator (polls `/health` every 30s) |
+| `UseExistingToggle.jsx` | Skip re-upload to reuse previously indexed data |
+| `config.js` | `API_BASE_URL = "http://localhost:8000"` |
 
 ---
 
@@ -42,117 +60,136 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that allows users 
 
 ### PDF Mode
 ```
-User uploads PDF
-  → POST /upload (multipart)
+Upload PDF → POST /upload (multipart)
   → PyPDFLoader → RecursiveCharacterTextSplitter (1000/200)
   → OpenAI text-embedding-3-large
-  → DELETE old Qdrant collection → Store new vectors
-  → Chat enabled ✅
+  → Delete old {COLLECTION}_pdf → Store vectors in Qdrant
 
-User asks question
-  → POST /pdf_chat {message}
-  → translate_query() → [original + multi-query variants]
-  → search_and_filter() → similarity_search_with_score per query
-  → filter score ≥ 0.4 → deduplicate → top 5 chunks
-  → Build context → GPT-4o-mini → Return answer
+User query → POST /pdf_chat {message}
+  → translate_query() → 4 query variants
+  → search_and_filter("pdf") → cosine ≥ 0.4 → dedup → top 5 chunks
+  → GPT-4o-mini with context → LLM judge → Response
 ```
 
 ### Web URL Mode
 ```
-User enters URL
-  → POST /web-url {url}
+Enter URL → POST /web-url {url}
   → crawl_webpage() → BeautifulSoup text extraction
-  → RecursiveCharacterTextSplitter → OpenAI embeddings
-  → Append to Qdrant collection
-  → Chat enabled ✅
+  → Chunk → Embed → Store in {COLLECTION}_url
 
-User asks question
-  → POST /web_url_chat {message}
-  → Direct similarity_search(k=5) → context → GPT-4o-mini
+User query → POST /web_url_chat {message}
+  → similarity_search(k=5) → context → GPT-4o-mini → Response
+```
+
+### JSON Mode — V1 Classic (Pandas + Vector)
+```
+Upload JSON → POST /upload-json {file}
+  → Flatten categories → products → Document per product
+  → Store page_content + metadata in {COLLECTION}_json
+  → Create Qdrant payload indexes (price, brand, categoryName, hasPromotions)
+
+User query → POST /json_chat {message, version: "v1"}
+  → classify_query_type() → STRUCTURED | SEMANTIC | HYBRID
+
+  STRUCTURED: load JSON from disk → Pandas filter → format results
+  SEMANTIC:   translate_query() → vector search → LLM → judge
+  HYBRID:     Pandas filter first → semantic search on subset → LLM
+```
+
+### JSON Mode — V2 Hybrid (Pure Qdrant)
+```
+Same indexing as V1
+
+User query → POST /json_chat {message, version: "v2"}
+  → classify_query_type() → STRUCTURED | SEMANTIC | HYBRID
+
+  STRUCTURED: build_qdrant_filter() → single Qdrant query_points() call
+  SEMANTIC:   embed query → Qdrant vector search → LLM → judge
+  HYBRID:     parse_hybrid_query() → embed semantic part + build filter
+              → single Qdrant call (vector + filter combined)
+              → LLM → judge → Response
 ```
 
 ---
 
-## 🧠 Query Translation Strategies
+## 🧠 Query Translation
 
-Defined in `query_translation.py`, these run **before** vector search to improve retrieval coverage:
+Implemented in `query_translation.py`. Each user query is expanded into **4 variants** before vector search:
 
-| Strategy | What it does | Example |
-|----------|-------------|---------|
-| **Multi-Query** | Rewrites query into 3 alternative phrasings | "What is JSX?" → ["Explain JSX in React", "How JSX works", "JSX syntax"] |
-| **Step-Back** | Generates a broader, abstract version | "What does useState return?" → "How do React hooks work?" |
-| **Sub-Query** | Decomposes complex question into sub-questions | "What is JSX and how differs from HTML?" → ["What is JSX?", "JSX vs HTML?"] |
+```
+"Suggest refreshing drinks"
+  → "Suggest refreshing drinks"                  (original)
+  → "What are cool and refreshing beverages?"    (variant 1)
+  → "Can you recommend thirst-quenching drinks?" (variant 2)
+  → "What drinks would help me feel refreshed?"  (variant 3)
+```
 
-### Test Results (React Quick Start PDF)
-| Category | Count | % |
-|----------|-------|---|
-| ✅ Direct matches | 5/15 | 33% |
-| 🔄 Found via translation | 5/15 | 33% |
-| ❌ Not in document (correct) | 5/15 | 33% |
-| **Total success** | **10/15** | **67%** |
+All 4 are searched against Qdrant. Results are merged, deduplicated, and ranked by score.
 
-> See full results in [SampleData/rag_query_test_results.md](SampleData/rag_query_test_results.md)
+---
+
+## 🗂️ JSON Query Classification
+
+Each JSON query is automatically classified and routed:
+
+| Type | Example Query | Handler |
+|------|--------------|---------|
+| **STRUCTURED** | "Products under ₹50", "List all Coca-Cola items" | Direct filter (Pandas V1 / Qdrant V2) |
+| **SEMANTIC** | "Suggest refreshing drinks", "Best sweet snacks" | Vector similarity search |
+| **HYBRID** | "Sweet drinks under ₹40", "Amul products with offers" | Filter + semantic combined |
 
 ---
 
 ## 🚀 Setup
 
 ### Prerequisites
-- **Python 3.9+**
-- **Node.js 14+**
-- **OpenAI API Key** — for embeddings (`text-embedding-3-large`) and LLM (`gpt-4o-mini`)
-- **Qdrant Cloud Account** — vector database (or self-hosted Qdrant instance)
+- Python 3.9+
+- Node.js 14+
+- OpenAI API Key
+- Qdrant Cloud account (or self-hosted Qdrant)
 
 ### 1. Environment Configuration
 
-The `.env` file is **not committed to git** for security reasons.
-
-Create a `.env` file manually in the `RAG_api` directory:
-
-```bash
-# Copy the example file and fill in your values
-cp RAG_api/.env.example RAG_api/.env
-```
-
-Or create it manually with the following keys:
-
+Create `RAG_api/.env`:
 ```env
-QDRANT_URL="YOUR_QDRANT_URL_HERE"
-QDRANT_API_KEY="YOUR_QDRANT_API_KEY_HERE"
-QDRANT_COLLECTION="YOUR_QDRANT_COLLECTION_HERE"
-OPENAI_API_KEY="YOUR_OPENAI_API_KEY_HERE"
+OPENAI_API_KEY=sk-proj-...
+QDRANT_URL=https://your-cluster.qdrant.io:6333
+QDRANT_API_KEY=your-qdrant-api-key
+QDRANT_COLLECTION=chat_bot_vectors_1
 ```
 
-> ⚠️ **Never commit your `.env` file.** It contains secret API keys. The `.gitignore` is already configured to exclude it.
+> ⚠️ Never commit `.env` to git. It's already in `.gitignore`.
 
-### 2. Backend Setup
+### 2. Backend
 ```bash
 cd RAG_api
 pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+API available at `http://localhost:8000`  
+Swagger docs at `http://localhost:8000/docs`
 
-Backend runs at `http://localhost:8000`
-
-### 3. Frontend Setup
+### 3. Frontend
 ```bash
 cd text-rag-app
 npm install
 npm run dev
 ```
-
-Frontend runs at `http://localhost:5173`
+App available at `http://localhost:5173`
 
 ---
 
 ## 📋 API Endpoints
 
-| Endpoint | Method | Description | Request |
-|----------|--------|-------------|---------|
-| `/upload` | POST | Upload and index a PDF file | `multipart/form-data` with `file`, `chunk_size`, `chunk_overlap` |
-| `/pdf_chat` | POST | Query indexed PDF content | `{message: string}` |
-| `/web-url` | POST | Crawl and index a web page | `{url: string}` |
-| `/web_url_chat` | POST | Query indexed web content | `{message: string}` |
+| Endpoint | Method | Request Body | Description |
+|----------|--------|-------------|-------------|
+| `/health` | GET | — | Server health check |
+| `/upload` | POST | `FormData(file)` | Upload and index a PDF |
+| `/upload-json` | POST | `FormData(file)` | Upload and index a JSON file |
+| `/web-url` | POST | `{url: string}` | Crawl and index a web page |
+| `/pdf_chat` | POST | `{message: string}` | Query indexed PDF |
+| `/web_url_chat` | POST | `{message: string}` | Query indexed web content |
+| `/json_chat` | POST | `{message: string, version: "v1"\|"v2"}` | Query JSON data (V1 Classic or V2 Hybrid) |
 
 ---
 
@@ -162,31 +199,33 @@ Frontend runs at `http://localhost:5173`
 project-root/
 ├── RAG_api/                        # Backend
 │   ├── main.py                     # FastAPI server & routes
+│   ├── indexing.py                 # Chunk, embed, store in Qdrant
 │   ├── pdf_chat.py                 # PDF query orchestration
 │   ├── web_url_chat.py             # Web URL query handler
-│   ├── query_translation.py        # Multi-Query, Step-Back, Sub-Query
-│   ├── vector_search.py            # Search + filter + deduplicate
-│   ├── indexing.py                 # Chunk, embed, store in Qdrant
+│   ├── json_chat.py                # JSON V1 (Pandas + Vector)
+│   ├── json_chat_hybrid.py         # JSON V2 (Pure Qdrant Hybrid)
+│   ├── query_translation.py        # Multi-Query expansion
+│   ├── query_classifier.py         # STRUCTURED/SEMANTIC/HYBRID classifier
+│   ├── vector_search.py            # Search, filter, deduplicate
+│   ├── response_judge.py           # LLM-as-Judge relevance check
 │   ├── web_crawler.py              # Async web scraping
 │   ├── requirements.txt            # Python dependencies
-│   ├── .env                        # ⚠️ Not committed — create from .env.example
-│   ├── .env.example                # Template with required keys
-│   └── uploaded_files/             # PDF storage directory
+│   ├── .env                        # ⚠️ Not committed — create manually
+│   └── uploaded_files/             # Uploaded file storage
 │
 ├── text-rag-app/                   # Frontend
 │   ├── src/
-│   │   ├── App.jsx                 # Root component
-│   │   ├── DashboardLayout.jsx     # Main layout + chat + state
-│   │   ├── PdfUploader.jsx         # PDF drag-drop upload
-│   │   ├── WebUrlInput.jsx         # URL input form
-│   │   ├── main.jsx                # React entry point
-│   │   ├── App.css                 # Styling
-│   │   └── index.css               # Global styles
+│   │   ├── App.jsx
+│   │   ├── DashboardLayout.jsx     # Main layout, chat, V1/V2 toggle
+│   │   ├── PdfUploader.jsx
+│   │   ├── WebUrlInput.jsx
+│   │   ├── JsonUploader.jsx
+│   │   ├── JsonResultRenderer.jsx  # Renders JSON responses as tables
+│   │   ├── ApiStatusBadge.jsx
+│   │   ├── UseExistingToggle.jsx
+│   │   └── config.js               # API_BASE_URL
 │   ├── package.json
 │   └── vite.config.js
-│
-├── SampleData/
-│   └── rag_query_test_results.md   # RAG pipeline test results
 │
 └── README.md
 ```
@@ -197,42 +236,45 @@ project-root/
 
 ### Backend
 ```
-fastapi, uvicorn           — API server
-langchain, langchain-openai, langchain-qdrant  — RAG pipeline
-qdrant-client              — Vector database client
-openai                     — Embeddings + LLM
-pypdf                      — PDF text extraction
-httpx, beautifulsoup4      — Web crawling
-python-dotenv              — Environment variables
+fastapi==0.115.12, uvicorn==0.34.3     — API server
+openai==1.82.1                          — Embeddings + LLM (gpt-4o-mini)
+langchain==0.3.25                       — RAG pipeline
+langchain-openai==0.3.19               — OpenAI connector
+langchain-qdrant==0.2.0                — Qdrant vector store
+qdrant-client==1.17.1                  — Qdrant client (query_points API)
+pypdf==5.6.0                           — PDF text extraction
+httpx==0.28.1, beautifulsoup4          — Web crawling
+pandas>=2.0.0                          — DataFrame ops (JSON V1)
+python-dotenv==1.1.0                   — Environment config
 ```
 
 ### Frontend
 ```
-react@19, react-dom        — UI framework
-react-toastify             — Toast notifications
-vite                       — Build tool with hot reload
+react@19, react-dom@19          — UI framework
+react-toastify@11               — Toast notifications
+vite@6                          — Build tool + hot reload
 ```
 
 ---
 
 ## 🔧 Configuration
 
-### Chunking Parameters (configurable from UI)
-| Parameter | Range | Default | Effect |
-|-----------|-------|---------|--------|
-| Chunk Size | 100–4000 | 1000 | Larger = more context per chunk |
-| Chunk Overlap | 0–1000 | 200 | Higher = less information loss at boundaries |
+### Chunking (in `indexing.py`)
+| Parameter | Default |
+|-----------|---------|
+| Chunk Size | 1000 |
+| Chunk Overlap | 200 |
 
 ### Relevance Threshold (`vector_search.py`)
 ```python
-RELEVANCE_THRESHOLD = 0.4  # Cosine similarity minimum
+RELEVANCE_THRESHOLD = 0.4  # Cosine similarity minimum (0–1)
 ```
-| Score | Meaning |
-|-------|---------|
-| > 0.85 | Highly relevant |
-| 0.70–0.85 | Moderately relevant |
-| 0.4–0.70 | Weakly relevant (included) |
-| < 0.4 | Filtered out |
+
+### JSON Qdrant Payload Indexes (created on upload)
+- `metadata.price` — FLOAT (range filtering)
+- `metadata.brand` — KEYWORD (exact match)
+- `metadata.categoryName` — KEYWORD (exact match)
+- `metadata.hasPromotions` — BOOL (flag filtering)
 
 ---
 
@@ -240,293 +282,24 @@ RELEVANCE_THRESHOLD = 0.4  # Cosine similarity minimum
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| Duplicate search results | Same PDF uploaded multiple times | Old collection is now auto-deleted before re-indexing |
-| "Not found" for valid queries | Score below threshold | Lower `RELEVANCE_THRESHOLD` in `vector_search.py` |
-| Too many irrelevant results | Threshold too low | Raise `RELEVANCE_THRESHOLD` to 0.6–0.7 |
-| Upload fails | File > 50MB or not PDF | Check file size and type |
-| Chat disabled after upload | Upload failed silently | Check backend terminal for error logs |
+| `'QdrantClient' has no attribute 'search'` | Old qdrant-client API | Use `query_points()` (already fixed in codebase) |
+| `Index required but not found for "price"` | JSON indexed without payload indexes | Re-upload JSON to trigger new indexing |
+| Context shows `N/A` for all product fields | Old JSON indexed as raw text chunks | Re-upload JSON with current `indexing.py` |
+| Response marked IRRELEVANT by judge | LLM context too sparse or query too vague | Check backend logs for `combined_context` content |
+| `The read operation timed out` | OpenAI call with too-large context | Top-5 limit is already applied; verified fixed |
+| Duplicate search results | Same PDF uploaded multiple times | Old collection is auto-deleted on re-upload |
+| Upload fails | File > 50MB or not a valid PDF/JSON | Check file size and format |
+| Chat disabled after upload | Silent upload error | Check backend terminal for error logs |
+| CORS errors in browser | Backend not running | Ensure `uvicorn` is running on port 8000 |
 
 ---
 
 ## 🔐 Security Notes
 
-- `.env` file excluded from git via `.gitignore`
-- CORS currently allows all origins — restrict `allow_origins` for production
-- API keys stored only in `.env`, never hardcoded
-- File upload limited to PDFs with 50MB size cap
-
-
-## 🌟 Features
-
-- 📄 **PDF Upload & Processing** - Upload PDFs up to 50MB with drag-and-drop interface
-- 🌐 **Web URL Crawling** - Extract and process content from web pages
-- 💬 **Intelligent Chat Interface** - Ask questions about your documents with context-aware responses
-- ⚙️ **Configurable Text Chunking** - Adjust chunk size (100-4000) and overlap (0-1000) for optimal results
-- 🔍 **Vector Similarity Search** - Find relevant content using semantic search
-- 📊 **Real-time Feedback** - Loading indicators, toast notifications, and typing animations
-- 🎨 **Modern UI** - React-based responsive interface with dual-pane layout
-
-## 🏗️ Architecture
-
-### Backend (RAG_api)
-- **Framework**: FastAPI with Python
-- **Document Processing**: LangChain for PDF parsing and text chunking
-- **Vector Database**: Qdrant Cloud for storing embeddings
-- **AI Models**: OpenAI GPT-4-mini for responses, text-embedding-3-large for vectors
-- **Web Scraping**: Custom crawler using httpx and BeautifulSoup
-
-### Frontend (text-rag-app)
-- **Framework**: React 19 with Vite build tool
-- **Styling**: Custom CSS with responsive design
-- **State Management**: React hooks
-- **Notifications**: react-toastify for user feedback
-
-### Data Flow
-```
-User uploads PDF/URL → Backend processes & chunks content → 
-OpenAI creates embeddings → Qdrant stores vectors → 
-User asks question → Similarity search finds relevant chunks → 
-GPT-4 generates contextual response
-```
-
-## 🚀 Quick Setup
-
-### Prerequisites
-- **Python 3.9+**
-- **Node.js 14+**
-- **OpenAI API Key**
-- **Qdrant Cloud Account** (or local Qdrant instance)
-
-### 1. Environment Configuration
-Create a `.env` file in the `RAG_api` directory:
-
-```env
-QDRANT_URL="YOUR_QDRANT_URL_HERE"
-QDRANT_API_KEY="YOUR_QDRANT_API_KEY_HERE"
-QDRANT_COLLECTION="YOUR_QDRANT_COLLECTION_HERE"
-OPENAI_API_KEY="YOUR_OPENAI_API_KEY_HERE"
-```
-
-### 2. Backend Setup
-```bash
-# Navigate to backend directory
-cd RAG_api
-
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Start the FastAPI server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The backend will be available at `http://localhost:8000`
-
-### 3. Frontend Setup
-```bash
-# Navigate to frontend directory
-cd text-rag-app
-
-# Install Node.js dependencies
-npm install
-
-# Start the development server
-npm run dev
-```
-
-The frontend will be available at `http://localhost:5173`
-
-## 📋 API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/upload` | POST | Upload and process PDF files |
-| `/pdf_chat` | POST | Ask questions about uploaded PDFs |
-| `/web-url` | POST | Process content from web URLs |
-| `/web_url_chat` | POST | Ask questions about web content |
-
-## 🔧 Configuration Options
-
-### Text Chunking Parameters
-- **Chunk Size**: 100-4000 tokens (default: 1000)
-- **Chunk Overlap**: 0-1000 tokens (default: 200)
-- **Validation**: Overlap cannot exceed chunk size
-
-### Supported File Types
-- **PDF**: Up to 50MB
-- **Web URLs**: Any publicly accessible webpage
-
-## 📁 Project Structure
-
-```
-project-root/
-├── RAG_api/                    # Backend API
-│   ├── main.py                 # FastAPI server and routes
-│   ├── indexing.py             # Document processing & vector storage
-│   ├── pdf_chat.py             # PDF query handling
-│   ├── web_url_chat.py         # Web URL query handling
-│   ├── web_crawler.py          # Web scraping utilities
-│   ├── requirements.txt        # Python dependencies
-│   ├── .env                    # Environment variables
-│   ├── uploaded_files/         # PDF storage directory
-│   └── __pycache__/           # Python cache
-│
-├── text-rag-app/              # Frontend Application
-│   ├── src/
-│   │   ├── App.jsx             # Root component
-│   │   ├── DashboardLayout.jsx # Main UI layout
-│   │   ├── PdfUploader.jsx     # PDF upload component
-│   │   ├── WebUrlInput.jsx     # URL input component
-│   │   ├── main.jsx            # React entry point
-│   │   ├── App.css             # Styling
-│   │   └── index.css           # Global styles
-│   ├── public/                 # Static assets
-│   ├── package.json            # Node.js dependencies
-│   ├── vite.config.js          # Vite configuration
-│   └── eslint.config.js        # Linting rules
-│
-└── README.md                   # This file
-```
-
-## 🛠️ Key Dependencies
-
-### Backend (76 total packages)
-```
-fastapi==0.115.12              # Web framework
-langchain==0.3.25               # LLM integration
-langchain-openai==0.3.19        # OpenAI connector
-langchain-qdrant==0.2.0         # Vector database
-qdrant-client==1.14.2           # Qdrant client
-openai==1.82.1                  # OpenAI API
-pypdf==5.6.0                    # PDF processing
-httpx==0.28.1                   # HTTP client
-beautifulsoup4                  # HTML parsing
-uvicorn==0.34.3                 # ASGI server
-```
-
-### Frontend (3 main packages)
-```
-react==19.1.0                   # UI framework
-react-dom==19.1.0               # DOM rendering
-react-toastify==11.0.5          # Notifications
-vite==6.3.5                     # Build tool
-```
-
-## 🎯 Usage Guide
-
-### 1. PDF Upload Mode
-1. Select "📄 PDF File" mode in the sidebar
-2. Drag & drop a PDF or click to browse files
-3. Adjust chunk size and overlap if needed
-4. Wait for processing completion
-5. Start asking questions about the PDF content
-
-### 2. Web URL Mode
-1. Select "🌐 Web URL" mode in the sidebar
-2. Enter a valid web URL
-3. Configure chunking parameters
-4. Click submit and wait for processing
-5. Ask questions about the web page content
-
-### 3. Chat Interface
-- Type your question in the input field at the bottom
-- Press Enter or click Send
-- View responses in the chat area
-- Chat history is maintained during the session
-- Context from your documents is automatically included
-
-## 🔍 Advanced Features
-
-### Smart Text Processing
-- **Recursive Character Text Splitter**: Intelligently splits documents while preserving context
-- **Overlap Management**: Prevents information loss at chunk boundaries
-- **Token-aware Chunking**: Optimized for LLM token limits
-
-### Vector Search
-- **Semantic Similarity**: Find relevant content based on meaning, not just keywords
-- **Qdrant Integration**: High-performance vector database for fast retrieval
-- **Embedding Model**: OpenAI's text-embedding-3-large for superior accuracy
-
-### Error Handling
-- **File Validation**: Size limits, type checking, error messages
-- **API Resilience**: Graceful handling of network issues and API errors
-- **User Feedback**: Real-time status updates and notifications
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-**Backend won't start:**
-- Check if port 8000 is available
-- Verify all environment variables are set in `.env`
-- Ensure Python dependencies are installed
-
-**Frontend connection errors:**
-- Verify backend is running on port 8000
-- Check CORS settings in FastAPI
-- Ensure no firewall blocking local connections
-
-**Upload failures:**
-- Check file size (50MB limit)
-- Verify PDF is not corrupted or password-protected
-- Ensure sufficient disk space
-
-**Chat responses are poor:**
-- Adjust chunk size (try 500-1500 for better context)
-- Increase chunk overlap (try 10-20% of chunk size)
-- Verify document content is text-based (not just images)
-
-### Performance Tips
-- **Optimal chunk size**: 1000-1500 tokens for most documents
-- **Overlap ratio**: 10-20% of chunk size for good context preservation
-- **Document quality**: Clean, well-formatted PDFs work best
-- **Question specificity**: More specific questions yield better answers
-
-## 🔐 Security Notes
-
-- **API Keys**: Never commit `.env` file to version control
-- **CORS**: Currently allows all origins (adjust for production)
-- **File Upload**: Only accepts PDFs, with size limits enforced
-- **Rate Limiting**: Consider adding for production deployment
-
-## 🚢 Deployment
-
-### Development
-```bash
-# Backend
-cd RAG_api && uvicorn main:app --reload --port 8000
-
-# Frontend
-cd text-rag-app && npm run dev
-```
-
-### Production Build
-```bash
-# Frontend build
-cd text-rag-app && npm run build
-
-# Serve built files with your preferred web server
-# Backend can run with uvicorn in production mode (remove --reload)
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is for educational purposes. Please ensure you have proper licenses for all API services used.
-
-## 🆘 Support
-
-For issues and questions:
-1. Check the troubleshooting section above
-2. Verify your API keys and environment setup
-3. Review the console logs for error messages
-4. Ensure all dependencies are properly installed
+- `.env` is excluded from git via `.gitignore` — never commit it
+- CORS currently allows all origins (`allow_origins=["*"]`) — restrict for production
+- API keys only in `.env`, never hardcoded
+- JSON and PDF upload endpoints validate file types
 
 ---
 
