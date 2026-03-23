@@ -57,6 +57,14 @@ def search_and_filter(translated_queries: list[str], collection_suffix: str = "p
 
     print(f"\n🔍 Total raw results across all queries: {len(all_raw_results)}")
 
+    # Debug: Print all raw results content
+    for i, (doc, score) in enumerate(all_raw_results):
+        print(f"\n📄 Raw Result {i+1}:")
+        print(f"   Score: {score:.4f}")
+        print(f"   Content: {doc.page_content}")
+        print(f"   Metadata: {doc.metadata}")
+    
+
     # Step 2: Filter by relevance threshold — removes chunks unrelated to the query
     relevant_results = [
         (doc, score) for doc, score in all_raw_results
