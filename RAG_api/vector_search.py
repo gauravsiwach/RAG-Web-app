@@ -57,11 +57,11 @@ def search_and_filter(translated_queries: list[str], collection_suffix: str = "p
 
     print(f"\n🔍 Total raw results across all queries: {len(all_raw_results)}")
 
-    # Debug: Print all raw results content
-    for i, (doc, score) in enumerate(all_raw_results):
-        print(f"\n📄 Raw Result {i+1}:")
+    # Debug: Print sample raw results content (first 3 only)
+    for i, (doc, score) in enumerate(all_raw_results[:3]):
+        print(f"\n📄 Sample Result {i+1}:")
         print(f"   Score: {score:.4f}")
-        print(f"   Content: {doc.page_content}")
+        print(f"   Content: {doc.page_content[:100]}...")
         print(f"   Metadata: {doc.metadata}")
     
 
