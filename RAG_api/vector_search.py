@@ -72,6 +72,13 @@ def search_and_filter(translated_queries: list[str], collection_suffix: str = "p
     ]
     print(f"📊 Results above relevance threshold ({RELEVANCE_THRESHOLD}): {len(relevant_results)}")
 
+    # Debug: Print sample raw results content (first 3 only)
+    for i, (doc, score) in enumerate(relevant_results[:3]):
+        print(f"\n📄relevant_results---> {i+1}:")
+        print(f"   Score: {score:.4f}")
+        print(f"   Content: {doc.page_content[:100]}...")
+        print(f"   Metadata: {doc.metadata}")
+
     if not relevant_results:
         return []
 
