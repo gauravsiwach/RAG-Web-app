@@ -1,170 +1,145 @@
-#  uvicorn main:app --reload 
+"""
+main.py
 
-from fastapi import FastAPI, UploadFile, File, status, HTTPException
-from fastapi.responses import JSONResponse
+FastAPI application entry point with modular router organization.
+Uses centralized config/, core/, services/, handlers/, and api/ packages.
+"""
+
+import logging
+from datetime import datetime
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, HttpUrl
-import os
+from config.settings import settings
+from api.endpoints import health_router, chat_router, upload_router
 
- 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-from indexing import process_pdfFile
-from indexing import process_web_url_content
-from indexing import process_json_file
-from pdf_chat import get_query_result_pdf
-from web_url_chat import get_query_result_web
-from json_chat import get_query_result_json
-from json_chat_hybrid import get_query_result_json_hybrid
-from web_crawler import crawl_webpage
-from web_crawler import crawl_all_pages
+# Validate configuration on startup
+try:
+    settings.validate()
+    logger.info("✅ Configuration validation successful")
+except Exception as e:
+    logger.error(f"❌ Configuration validation failed: {e}")
+    raise
 
+# Create FastAPI application
+app = FastAPI(
+    title="RAG Chatbot API",
+    description="""
+    **Retrieval-Augmented Generation (RAG) Chatbot API**
+    
+    A comprehensive RAG system supporting multiple document types and query modes:
+    
+    ## Features
+    
+    ### 📄 **PDF Chat**
+    - Upload and query PDF documents
+    - Page-aware responses with navigation hints
+    - Multi-query translation for better retrieval
+    
+    ### 🌐 **Web URL Chat**  
+    - Crawl and query web page content
+    - Async content extraction and processing
+    - Web-optimized response generation
+    
+    ### 📊 **JSON Product Chat**
+    - **V1**: Pandas-based structured + semantic search
+    - **V2**: Pure Qdrant hybrid search with native filtering
+    - Automatic query classification (STRUCTURED/SEMANTIC/HYBRID)
+    - Natural language filter extraction
+    
+    ## RAG Pipeline
+    - **Query Translation**: Multi-query expansion for better retrieval
+    - **Vector Search**: Qdrant-powered similarity matching with relevance filtering  
+    - **Guardrails**: Input validation and output relevance checking
+    - **Hybrid Search**: Combines semantic similarity and structured filtering
+    
+    ## Technologies
+    - **LLM**: OpenAI GPT-4o-mini
+    - **Embeddings**: text-embedding-3-large  
+    - **Vector DB**: Qdrant Cloud
+    - **Framework**: FastAPI + Pydantic
+    """,
+    version="1.0.0",
+    contact={
+        "name": "RAG API Support",
+        "email": "support@ragapi.com"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    }
+)
 
-app = FastAPI()
+# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Configure appropriately for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "message": "RAG API is running"}
-
-# Request model
-class ChatRequest(BaseModel):
-    message: str
-    version: str = "v2"  # "v1" = json_chat (Pandas+Vector), "v2" = json_chat_hybrid (Pure Qdrant)
-
-# Response model
-class ChatResponse(BaseModel):
-    reply: str
-@app.post("/pdf_chat", response_model=ChatResponse)
-def chat_api(request: ChatRequest):
-    print("Received request:", request)
-    print("User message:", request.message)
-    user_message = request.message
-    result=get_query_result_pdf(user_message)
-    return {"reply":result}  
-
-@app.post("/web_url_chat", response_model=ChatResponse) 
-def chat_api(request: ChatRequest):
-    print("Received request:", request)
-    print("User message:", request.message)
-    user_message = request.message
-    result=get_query_result_web(user_message)
-    return {"reply":result}   
-
-@app.post("/json_chat", response_model=ChatResponse)
-def json_chat_api(request: ChatRequest):
-    print("Received request:", request)
-    print("User message:", request.message)
-    print(f"Chat engine version: {request.version}")
-    if request.version == "v1":
-        result = get_query_result_json(request.message)
-    else:  # v2 (default)
-        result = get_query_result_json_hybrid(request.message)
-    return {"reply": result}
+# Include API routers
+app.include_router(health_router, tags=["Health"])
+app.include_router(chat_router, tags=["Chat"])
+app.include_router(upload_router, tags=["Upload & Indexing"])
 
 
-@app.post("/upload")
-def upload_file(file: UploadFile = File(...)):
-    try:
-        # Ensure directory exists
-        os.makedirs("uploaded_files", exist_ok=True)
-
-        file_content = file.file.read()
-        file_path = f"uploaded_files/{file.filename}"
-        with open(file_path, "wb") as f:
-            bytes_written = f.write(file_content)
-
-        if bytes_written == 0:
-            raise HTTPException(status_code=500, detail="Failed to write file content.")
-
-        # call the function to process the file here
-        # and save vector into db
-        result=process_pdfFile(file_path)
-
-        if result is False:
-            raise HTTPException(status_code=500, detail="Failed to process the file.")
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                     "filename": file.filename, 
-                     "size": bytes_written, 
-                     "message": "File uploaded successfully and indexing in done."
-                     }
-        )       
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+@app.on_event("startup")
+async def startup_event():
+    """Application startup tasks."""
+    logger.info("🚀 Starting RAG Chatbot API")
+    logger.info(f"📋 Configuration: OpenAI Model = {settings.OPENAI_MODEL}")
+    logger.info(f"📋 Configuration: Embedding Model = {settings.EMBEDDING_MODEL}")
+    logger.info(f"📋 Configuration: Max File Size = {settings.MAX_FILE_SIZE // (1024*1024)}MB")
+    logger.info(f"📋 Configuration: Relevance Threshold = {settings.RELEVANCE_THRESHOLD}")
+    logger.info("✅ RAG API startup complete")
 
 
-@app.post("/upload-json")
-def upload_json_file(file: UploadFile = File(...)):
-    try:
-        if not file.filename.endswith(".json"):
-            raise HTTPException(status_code=400, detail="Only .json files are allowed.")
-
-        os.makedirs("uploaded_files", exist_ok=True)
-
-        file_content = file.file.read()
-        file_path = f"uploaded_files/{file.filename}"
-        with open(file_path, "wb") as f:
-            bytes_written = f.write(file_content)
-
-        if bytes_written == 0:
-            raise HTTPException(status_code=500, detail="Failed to write file content.")
-
-        result = process_json_file(file_path)
-
-        if result is False:
-            raise HTTPException(status_code=500, detail="Failed to process the JSON file.")
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "filename": file.filename,
-                "size": bytes_written,
-                "message": "JSON file uploaded and indexed successfully."
-            }
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-class UrlPayload(BaseModel):
-    url: HttpUrl
-
-@app.post("/web-url")
-async def process_web_url(payload: UrlPayload):
-    try:
-        print("Received URL:", payload.url)
-        url_str = str(payload.url) 
-        print("calling crawl_webpage")
-        page_content_result = await crawl_webpage(url_str)
-        
-        print("crawl_webpage result:", page_content_result)
-
-        if not page_content_result:
-            raise HTTPException(status_code=500, detail="No content found for the URL.")
-        
-        page_content = list(page_content_result.values())[0]
-        #crawl_all_pages(url_str)
-        # call the function to process the file here
-        # and save vector into db
-        result=process_web_url_content(page_content)
-        if not result:
-            raise HTTPException(status_code=500, detail="Failed to process the webpage.")
-
-        return result
-    except Exception as e:
-        print(f"Exception in /web-url: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown tasks."""
+    logger.info("🛑 Shutting down RAG Chatbot API")
+    logger.info("✅ Shutdown complete")
 
 
-# uvicorn main:app --reload --host 0.0.0.0 --port 8000
-# uvicorn main:app --reload --host 0.0.0.0 --port 9000
- 
+# Root endpoint
+@app.get("/", include_in_schema=False)
+def root():
+    """Root endpoint with API information."""
+    return {
+        "message": "RAG Chatbot API",
+        "version": "1.0.0", 
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "docs": "/docs",
+        "health": "/health",
+        "features": [
+            "PDF document chat",
+            "Web URL chat",
+            "JSON product data chat (V1 & V2)",
+            "Multi-query translation",
+            "Hybrid search", 
+            "Guardrails & safety",
+            "Vector similarity search"
+        ]
+    }
+
+
+# Development server startup
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+        reload=True,
+        log_level="info"
+    )
+
+#uvicorn main:app --reload --host 0.0.0.0 --port 8000

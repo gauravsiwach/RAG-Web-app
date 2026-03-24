@@ -1,15 +1,35 @@
+"""
+indexing_service.py
+
+Document indexing service for PDF, JSON, and web content.
+Handles vector embedding and Qdrant storage with consistent configuration.
+"""
+
+import json
+import logging
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings
 from langchain_qdrant import QdrantVectorStore
-from dotenv import load_dotenv 
-import os
-import json
+from langchain_core.documents import Document
+from qdrant_client import QdrantClient
+from qdrant_client.models import PayloadSchemaType
+from config.settings import settings
 
-load_dotenv()  
+logger = logging.getLogger(__name__)
 
-def process_pdfFile(file_path):
-    print(f"Starting PDF processing for: {file_path}")
+
+def process_pdf_file(file_path: str) -> bool:
+    """
+    Process and index PDF document for vector search.
+    
+    Args:
+        file_path: Path to PDF file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    logger.info(f"Starting PDF processing for: {file_path}")
     try:
         # Load the PDF file
         loader = PyPDFLoader(file_path)
@@ -24,42 +44,46 @@ def process_pdfFile(file_path):
 
         # Vector Embeddings
         embedding_model = OpenAIEmbeddings(
-            model="text-embedding-3-large"
+            model=settings.EMBEDDING_MODEL,
+            api_key=settings.OPENAI_API_KEY
         )
 
         # Remove old collection if it exists
-        from qdrant_client import QdrantClient
-        qdrant_url = os.getenv("QDRANT_URL")
-        qdrant_api_key = os.getenv("QDRANT_API_KEY")
-        qdrant_collection = os.getenv("QDRANT_COLLECTION") + "_pdf"
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        qdrant_collection = settings.QDRANT_COLLECTION + "_pdf"
+        client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
         collections = client.get_collections().collections
         if qdrant_collection in [c.name for c in collections]:
-            print(f"Deleting old collection: {qdrant_collection}")
+            logger.info(f"Deleting old collection: {qdrant_collection}")
             client.delete_collection(collection_name=qdrant_collection)
 
-        # Using [embedding_model] create embeddings of [split_docs] and store in DB
+        # Create embeddings and store in Qdrant
         vector_store = QdrantVectorStore.from_documents(
             documents=split_docs,
-            url=qdrant_url,
-            api_key=qdrant_api_key,
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY,
             collection_name=qdrant_collection,
             embedding=embedding_model
         )
-        print("Indexing of Documents Done...")
+        logger.info("✅ PDF indexing completed successfully")
         return True
     except Exception as e:
-        import traceback
-        print(f"Error processing PDF file: {e}")
-        traceback.print_exc()
+        logger.error(f"❌ Error processing PDF file: {e}", exc_info=True)
         return False
 
-def process_web_url_content(pages_content: str):
+
+def process_web_url_content(pages_content: str) -> bool:
+    """
+    Process and index web content for vector search.
+    
+    Args:
+        pages_content: Raw web page content text
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    logger.info("Processing web URL content...")
     try:
-        print("Processing web URL content...")
-        qdrant_url = os.getenv("QDRANT_URL")
-        qdrant_api_key = os.getenv("QDRANT_API_KEY")
-        qdrant_collection = os.getenv("QDRANT_COLLECTION") + "_url"
+        qdrant_collection = settings.QDRANT_COLLECTION + "_url"
 
         # Chunking the documents
         text_splitter = RecursiveCharacterTextSplitter(
@@ -70,57 +94,61 @@ def process_web_url_content(pages_content: str):
 
         # Vector Embeddings
         embedding_model = OpenAIEmbeddings(
-            model="text-embedding-3-large"
+            model=settings.EMBEDDING_MODEL,
+            api_key=settings.OPENAI_API_KEY
         )
 
         # Remove old collection if it exists
-        from qdrant_client import QdrantClient
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
         collections = client.get_collections().collections
         if qdrant_collection in [c.name for c in collections]:
-            print(f"Deleting old collection: {qdrant_collection}")
+            logger.info(f"Deleting old collection: {qdrant_collection}")
             client.delete_collection(collection_name=qdrant_collection)
 
-        # Using [embedding_model] create embeddings of [split_contents] and store in DB
+        # Create embeddings and store in Qdrant
         vector_store = QdrantVectorStore.from_texts(
             texts=split_contents,
-            url=qdrant_url,
-            api_key=qdrant_api_key,
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY,
             collection_name=qdrant_collection,
             embedding=embedding_model
         )
-        print("Indexing of Documents Done...")
-
+        logger.info("✅ Web URL indexing completed successfully")
         return True
     except Exception as e:
-        import traceback
-        print(f"Error processing web URL: {e}")
-        traceback.print_exc()
+        logger.error(f"❌ Error processing web URL: {e}", exc_info=True)
         return False
 
 
-def process_json_file(file_path):
-    print(f"Starting JSON processing for: {file_path}")
+def process_json_file(file_path: str) -> bool:
+    """
+    Process and index JSON product data for hybrid vector search.
+    
+    Args:
+        file_path: Path to JSON file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    logger.info(f"Starting JSON processing for: {file_path}")
     try:
-        qdrant_url = os.getenv("QDRANT_URL")
-        qdrant_api_key = os.getenv("QDRANT_API_KEY")
-        qdrant_collection = os.getenv("QDRANT_COLLECTION") + "_json"
+        qdrant_collection = settings.QDRANT_COLLECTION + "_json"
 
         # Load and parse JSON file
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         # Vector Embeddings
-        embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
+        embedding_model = OpenAIEmbeddings(
+            model=settings.EMBEDDING_MODEL,
+            api_key=settings.OPENAI_API_KEY
+        )
 
         # Remove old collection if it exists
-        from qdrant_client import QdrantClient
-        from qdrant_client.models import PayloadSchemaType
-        from langchain_core.documents import Document
-        client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        client = QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
         collections = client.get_collections().collections
         if qdrant_collection in [c.name for c in collections]:
-            print(f"Deleting old collection: {qdrant_collection}")
+            logger.info(f"Deleting old collection: {qdrant_collection}")
             client.delete_collection(collection_name=qdrant_collection)
 
         # Flatten JSON categories → individual product Documents with structured metadata
@@ -132,7 +160,7 @@ def process_json_file(file_path):
                     promotions = product.get("promotions", [])
                     has_promotions = len(promotions) > 0
                     promo_text = ", ".join([p.get("desc", "") for p in promotions]) if promotions else "No promotions"
-
+                    
                     # Text for semantic search embedding
                     text = (
                         f"Product: {product.get('productName', '')} | "
@@ -157,8 +185,7 @@ def process_json_file(file_path):
                     )
                     documents.append(doc)
         else:
-            # Fallback: generic JSON — chunk as text
-            from langchain_text_splitters import RecursiveCharacterTextSplitter
+            # Fallback: generic JSON → chunk as text
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             raw = json.dumps(data, indent=2, ensure_ascii=False)
             for chunk in text_splitter.split_text(raw):
@@ -167,23 +194,27 @@ def process_json_file(file_path):
         # Store embeddings in Qdrant with per-product metadata
         vector_store = QdrantVectorStore.from_documents(
             documents=documents,
-            url=qdrant_url,
-            api_key=qdrant_api_key,
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY,
             collection_name=qdrant_collection,
             embedding=embedding_model,
         )
 
         # Create payload indexes so Qdrant can filter on structured fields
-        print("📋 Creating payload indexes for filterable fields...")
-        client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.price",        field_schema=PayloadSchemaType.FLOAT)
-        client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.brand",        field_schema=PayloadSchemaType.KEYWORD)
+        logger.info("📋 Creating payload indexes for filterable fields...")
+        client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.price", field_schema=PayloadSchemaType.FLOAT)
+        client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.brand", field_schema=PayloadSchemaType.KEYWORD)
         client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.categoryName", field_schema=PayloadSchemaType.KEYWORD)
         client.create_payload_index(collection_name=qdrant_collection, field_name="metadata.hasPromotions", field_schema=PayloadSchemaType.BOOL)
-
-        print(f"✅ Indexing of JSON Done... ({len(documents)} products indexed with structured metadata)")
+        
+        logger.info(f"✅ JSON indexing completed successfully ({len(documents)} products indexed with structured metadata)")
         return True
     except Exception as e:
-        import traceback
-        print(f"Error processing JSON file: {e}")
-        traceback.print_exc()
+        logger.error(f"❌ Error processing JSON file: {e}", exc_info=True)
         return False
+
+
+# Legacy function aliases for backward compatibility
+process_pdfFile = process_pdf_file  # Legacy alias
+process_web_url_content = process_web_url_content  # Already using snake_case
+process_json_file = process_json_file  # Already using snake_case

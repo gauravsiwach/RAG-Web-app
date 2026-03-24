@@ -11,6 +11,7 @@ OUTPUT guardrails: LLM-based — absorbs and replaces response_judge.py.
 
 import re
 from openai import OpenAI
+from config.settings import settings
 
 client = OpenAI()
 
@@ -18,7 +19,7 @@ client = OpenAI()
 # Config
 # ---------------------------------------------------------------------------
 
-MAX_QUERY_LENGTH = 2000  # characters
+MAX_QUERY_LENGTH = settings.MAX_QUERY_LENGTH
 
 # Known prompt injection patterns (case-insensitive)
 _INJECTION_PATTERNS = [

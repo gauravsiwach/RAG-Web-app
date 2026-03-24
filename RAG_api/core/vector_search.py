@@ -6,29 +6,26 @@ Used by pdf_chat.py, web_url_chat.py, and json_chat.py for retrieval.
 """
 
 import os
-from dotenv import load_dotenv
 from langchain_qdrant import QdrantVectorStore
 from langchain_openai import OpenAIEmbeddings
-
-load_dotenv()
+from config.settings import settings
 
 # Vector Embeddings — shared embedding model for all search operations
 embedding_model = OpenAIEmbeddings(
-    model="text-embedding-3-large"
+    model=settings.EMBEDDING_MODEL
 )
 
 # Minimum similarity score to consider a result relevant.
 # Qdrant cosine similarity: 1.0 = identical, 0.0 = unrelated.
-RELEVANCE_THRESHOLD = 0.4
+RELEVANCE_THRESHOLD = settings.RELEVANCE_THRESHOLD
 
 
 def _get_vector_db(collection_suffix: str) -> QdrantVectorStore:
     """Connect to the Qdrant collection for the given source type."""
-    base = os.getenv("QDRANT_COLLECTION")
-    collection_name = f"{base}_{collection_suffix}"
+    collection_name = f"{settings.QDRANT_COLLECTION}_{collection_suffix}"
     return QdrantVectorStore.from_existing_collection(
-        url=os.getenv("QDRANT_URL"),
-        api_key=os.getenv("QDRANT_API_KEY"),
+        url=settings.QDRANT_URL,
+        api_key=settings.QDRANT_API_KEY,
         collection_name=collection_name,
         embedding=embedding_model,
     )
