@@ -8,6 +8,7 @@ from query_translation import translate_query
 from vector_search import search_and_filter
 from query_classifier import classify_query_type, extract_structured_filters
 from response_judge import evaluate_and_filter_response
+from guardrails import guardrails_input, guardrails_output
 
 load_dotenv()
 
@@ -389,8 +390,7 @@ def handle_semantic_query(query):
     response = generate_structured_response(query, context)
     
     # Step 5: Evaluate response relevance and filter if needed
-    evaluated_response = evaluate_and_filter_response(query, response, context)
-    return evaluated_response
+    return response
 
 
 def handle_hybrid_query(query):
@@ -483,26 +483,13 @@ def generate_hybrid_response(query, context, df):
             temperature=0.3  # Slight creativity for taste analysis
         )
         
-        # Parse the JSON response
-        result = json.loads(response.choices[0].message.content)
-        
-        # If LLM didn't provide data, use our structured data
-        if not result.get("data") and not df.empty:
-            result = format_structured_response(query, df)
-            # Enhance summary with hybrid note
-            result["summary"] = f"Hybrid search result: {result['summary']}"
-        
-        # Evaluate response relevance before returning
-        response_str = json.dumps(result)
-        evaluated_response = evaluate_and_filter_response(query, response_str, context)
-        return evaluated_response
+        # Return response string directly for final JSON parsing  
+        return response.choices[0].message.content
         
     except Exception as e:
         print(f"❌ Error generating hybrid response: {e}")
         # Fallback to structured formatting
-        fallback_response = json.dumps(format_structured_response(query, df))
-        evaluated_response = evaluate_and_filter_response(query, fallback_response, context)
-        return evaluated_response
+        return format_structured_response(query, df)
 
 
 def generate_structured_response(query, context):
@@ -547,35 +534,38 @@ def generate_structured_response(query, context):
 
 def get_query_result_json(query):
     try:
+        # INPUT guardrail — reject bad queries before any processing
+        input_check = guardrails_input(query)
+        if not input_check["passed"]:
+            return input_check["message"]
+            
         print(f"\n🧠 Original query: '{query}'")
         
         # Step 1: Classify query type
         query_type = classify_query_type(query)
-
         print(f"📂 Routing to handler for query type: {query_type}")
         
         # Step 2: Route to appropriate handler based on classification
         if query_type == "STRUCTURED":
             filters = extract_structured_filters(query)
             result = handle_structured_query(query, filters)
-            # Convert dict to JSON string if needed
-            if isinstance(result, dict):
-                return json.dumps(result)
-            return result
-            
         elif query_type == "HYBRID":
             result = handle_hybrid_query(query)
-            if isinstance(result, dict):
-                return json.dumps(result)
-            return result
-            
         else:  # SEMANTIC (default)
-            return handle_semantic_query(query)
-
+            result = handle_semantic_query(query)
         
-        print(f"\n🤖: {result}")
-        return result
-
+        # Step 3: Apply OUTPUT guardrail once (centralized)
+        if isinstance(result, dict):
+            response_str = json.dumps(result)
+        else:
+            response_str = result  # Already a JSON string
+            
+        context = "Query result processed through appropriate handler"
+        evaluated_response = guardrails_output(query, response_str, context)
+        
+        # Return final response (guardrails handles JSON validation)
+        return evaluated_response
+        
     except Exception as e:
         print(f"❌ Error in get_query_result_json: {e}")
         return "Sorry, there was an error processing your query. Please try again."
