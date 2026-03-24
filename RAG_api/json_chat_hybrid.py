@@ -22,6 +22,7 @@ from langchain_openai import OpenAIEmbeddings
 from query_translation import translate_query
 from query_classifier import classify_query_type, extract_structured_filters
 from response_judge import evaluate_and_filter_response
+from guardrails import guardrails_input, guardrails_output
 
 load_dotenv()
 
@@ -382,6 +383,11 @@ def get_query_result_json_hybrid(query: str) -> str:
     - HYBRID: Qdrant hybrid search with semantic + filters
     """
     try:
+        # INPUT guardrail — reject bad queries before any processing
+        input_check = guardrails_input(query)
+        if not input_check["passed"]:
+            return input_check["message"]
+            
         print(f"\n🧠 Hybrid V2 query: '{query}'")
         
         # Step 1: Classify query type using the same logic as original
@@ -399,8 +405,12 @@ def get_query_result_json_hybrid(query: str) -> str:
         else:  # HYBRID (default)
             result = handle_hybrid_query_v2(query)
         
+        # Step 3: Apply OUTPUT guardrail once (centralized)
+        context = "Hybrid query result processed through appropriate handler"
+        evaluated_response = guardrails_output(query, result, context)
+        
         print(f"\n🤖 Hybrid V2 result ready: {query_type}")
-        return result
+        return evaluated_response
 
     except Exception as e:
         print(f"❌ Error in hybrid JSON chat: {e}")
