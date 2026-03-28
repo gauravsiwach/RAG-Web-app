@@ -1,5 +1,10 @@
-#  uvicorn main:app --reload 
+# Load environment variables first, before any other imports
+from dotenv import load_dotenv
+load_dotenv()
 
+# Azure AI Search hybrid chat endpoint
+from azure_search_hybrid import azure_search_hybrid_chat
+from fastapi import Body
 from fastapi import FastAPI, UploadFile, File, status, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +22,16 @@ from json_chat import get_query_result_json
 from json_chat_hybrid import get_query_result_json_hybrid
 from web_crawler import crawl_webpage
 from web_crawler import crawl_all_pages
+from azureai_indexing import azure_ai_indexing
 
 
-app = FastAPI()
+app = FastAPI(
+    title="RAG API",
+    description="A comprehensive API for Retrieval-Augmented Generation with support for PDF, JSON, Web content, and Azure AI Search integration",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,6 +39,49 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+
+
+# Azure AI Search indexing endpoint (Swagger-friendly)
+from typing import List
+from pydantic import BaseModel
+
+class ProductModel(BaseModel):
+    productId: str
+    productName: str
+    brand: str
+    price: float
+    taste: str = ""
+
+class CategoryModel(BaseModel):
+    categoryName: str
+    products: List[ProductModel]
+
+class IndexingPayload(BaseModel):
+    categories: List[CategoryModel]
+
+class AzureSearchChatRequest(BaseModel):
+    message: str
+
+@app.post("/azure_search_chat")
+async def azure_search_chat_endpoint(request: AzureSearchChatRequest):
+    """
+    Accepts a user message, performs hybrid search on Azure AI Search, and returns LLM-judged results.
+    """
+    return await azure_search_hybrid_chat(request.message)
+
+
+@app.post("/azure-ai-indexing/")
+async def azure_ai_indexing_endpoint(payload: IndexingPayload):
+    """
+    Accepts a JSON payload with product data, generates embeddings, and uploads to Azure AI Search.
+    """
+    try:
+        result = await azure_ai_indexing(payload.dict())
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/health")
 def health_check():
