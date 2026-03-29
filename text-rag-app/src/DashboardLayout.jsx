@@ -5,6 +5,7 @@ import JsonUploader from "./JsonUploader";
 import ApiStatusBadge from "./ApiStatusBadge";
 import UseExistingToggle from "./UseExistingToggle";
 import JsonResultRenderer from "./JsonResultRenderer";
+import VoiceInput from "./VoiceInput";
 import { API_BASE_URL } from "./config";
 
 const styles = {
@@ -75,6 +76,7 @@ const DashboardLayout = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [sending, setSending] = useState(false);
+  const [isListeningToVoice, setIsListeningToVoice] = useState(false);
 
   const [mode, setMode] = useState("pdf");
   const [useExisting, setUseExisting] = useState(false);
@@ -175,6 +177,72 @@ const DashboardLayout = () => {
     }
   };
 
+  const handleVoiceMessage = async (text) => {
+    if (!text.trim()) return;
+
+    // Create user message
+    const userMessage = {
+      id: Date.now(),
+      sender: "user",
+      text: text.trim(),
+    };
+
+    // Add user message to chat (remove listening indicator if present)
+    setChatHistory((prev) => {
+      const withoutListening = prev.filter(msg => !msg.isListening);
+      return [...withoutListening, userMessage];
+    });
+
+    // Set sending state
+    setSending(true);
+
+    try {
+      // Determine endpoint based on mode
+      const endpoint =
+        mode === "pdf"
+          ? `${API_BASE_URL}/pdf_chat`
+          : mode === "json"
+          ? `${API_BASE_URL}/json_chat`
+          : `${API_BASE_URL}/web_url_chat`;
+
+      // Prepare request body
+      const body = { message: text.trim() };
+      if (mode === "json") body.version = jsonVersion;
+
+      // Call backend API
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Chat API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Add bot response to chat
+      const botMessage = {
+        id: Date.now() + 1,
+        sender: "bot",
+        text: data.reply || "Sorry, I didn't get that.",
+      };
+      setChatHistory((prev) => [...prev, botMessage]);
+
+    } catch (error) {
+      // Handle errors
+      const errorMessage = {
+        id: Date.now() + 2,
+        sender: "bot",
+        text: `Error: ${error.message}`,
+      };
+      setChatHistory((prev) => [...prev, errorMessage]);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleFileProcessed = () => {
     setIsFileProcessed(true);
     setChatHistory([
@@ -218,6 +286,10 @@ const DashboardLayout = () => {
           .thinking::after {
             content: "Thinking";
             animation: thinkingDots 1s steps(4, end) infinite;
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
           }
         `}</style>
 
@@ -412,7 +484,7 @@ const DashboardLayout = () => {
             </div>
           )}
 
-          {chatHistory.map(({ id, sender, text }) => (
+          {chatHistory.map(({ id, sender, text, isVoice, isListening }) => (
             <div
               key={id}
               style={{
@@ -426,11 +498,19 @@ const DashboardLayout = () => {
               )}
               <div
                 style={{
-                  backgroundColor: sender === "user" ? "#2563eb" : "#e2e8f0",
-                  color: sender === "user" ? "white" : "black",
+                  backgroundColor: 
+                    isListening ? "#fbbf24" : 
+                    sender === "user" ? "#2563eb" : 
+                    "#e2e8f0",
+                  color: 
+                    isListening ? "#78350f" : 
+                    sender === "user" ? "white" : 
+                    "black",
                   padding: "8px 12px",
                   borderRadius: "8px",
                   maxWidth: sender === "user" ? "60%" : "80%",
+                  fontStyle: isListening ? "italic" : "normal",
+                  animation: isListening ? "pulse 1.5s ease-in-out infinite" : "none",
                 }}
               >
                 {sender === "bot" && mode === "json" ? (
@@ -471,7 +551,7 @@ const DashboardLayout = () => {
             type="text"
             placeholder={
               isFileProcessed
-                ? "Type your message..."
+                ? "Type your message or use voice..."
                 : "Upload and process a PDF first"
             }
             style={isFileProcessed ? styles.input : styles.disabledInput}
@@ -479,6 +559,36 @@ const DashboardLayout = () => {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={handleKeyDown}
+          />
+          <VoiceInput
+            onTranscript={(text, autoSend) => {
+              if (autoSend) {
+                handleVoiceMessage(text);
+              } else {
+                setChatInput(text);
+              }
+            }}
+            onListeningChange={(listening) => {
+              setIsListeningToVoice(listening);
+              
+              // Show "Listening..." indicator in chat
+              if (listening) {
+                const listeningMessage = {
+                  id: Date.now(),
+                  sender: "user",
+                  text: "🎤 Listening...",
+                  isListening: true
+                };
+                setChatHistory((prev) => [...prev, listeningMessage]);
+              } else {
+                // Remove listening indicator
+                setChatHistory((prev) => 
+                  prev.filter(msg => !msg.isListening)
+                );
+              }
+            }}
+            disabled={!isFileProcessed || sending}
+            autoSend={true}
           />
           <button
             onClick={handleSendMessage}
