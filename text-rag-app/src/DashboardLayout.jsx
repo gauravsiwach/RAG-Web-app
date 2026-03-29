@@ -6,7 +6,9 @@ import ApiStatusBadge from "./ApiStatusBadge";
 import UseExistingToggle from "./UseExistingToggle";
 import JsonResultRenderer from "./JsonResultRenderer";
 import VoiceInput from "./VoiceInput";
+import ImageQueryInput from "./ImageQueryInput";
 import { API_BASE_URL } from "./config";
+
 
 const styles = {
   container: {
@@ -177,23 +179,8 @@ const DashboardLayout = () => {
     }
   };
 
-  const handleVoiceMessage = async (text) => {
-    if (!text.trim()) return;
-
-    // Create user message
-    const userMessage = {
-      id: Date.now(),
-      sender: "user",
-      text: text.trim(),
-    };
-
-    // Add user message to chat (remove listening indicator if present)
-    setChatHistory((prev) => {
-      const withoutListening = prev.filter(msg => !msg.isListening);
-      return [...withoutListening, userMessage];
-    });
-
-    // Set sending state
+  // Common method to send query to RAG backend
+  const sendQueryToRAG = async (queryText) => {
     setSending(true);
 
     try {
@@ -206,7 +193,7 @@ const DashboardLayout = () => {
           : `${API_BASE_URL}/web_url_chat`;
 
       // Prepare request body
-      const body = { message: text.trim() };
+      const body = { message: queryText };
       if (mode === "json") body.version = jsonVersion;
 
       // Call backend API
@@ -241,6 +228,45 @@ const DashboardLayout = () => {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleVoiceMessage = async (text) => {
+    if (!text.trim()) return;
+
+    // Create user message
+    const userMessage = {
+      id: Date.now(),
+      sender: "user",
+      text: text.trim(),
+      isVoice: true,
+    };
+
+    // Add user message to chat (remove listening indicator if present)
+    setChatHistory((prev) => {
+      const withoutListening = prev.filter(msg => !msg.isListening);
+      return [...withoutListening, userMessage];
+    });
+
+    // Send query to RAG
+    await sendQueryToRAG(text.trim());
+  };
+
+  const handleImageMessage = async (text, imageUrl) => {
+    if (!text.trim()) return;
+
+    // Create user message with image
+    const userMessage = {
+      id: Date.now(),
+      sender: "user",
+      // text: text.trim(),
+      imageUrl: imageUrl,
+    };
+
+    // Add user message to chat
+    setChatHistory((prev) => [...prev, userMessage]);
+
+    // Send query to RAG
+    await sendQueryToRAG(text.trim());
   };
 
   const handleFileProcessed = () => {
@@ -367,9 +393,9 @@ const DashboardLayout = () => {
           </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             {[
-              { value: "pdf",  icon: "📄", label: "PDF File"  },
-              { value: "web",  icon: "🌐", label: "Web URL"   },
-              { value: "json", icon: "🗂️", label: "JSON File" },
+              { value: "pdf",   icon: "📄", label: "PDF File"  },
+              { value: "web",   icon: "🌐", label: "Web URL"   },
+              { value: "json",  icon: "🗂️", label: "JSON File" },
             ].map(({ value, icon, label }) => (
               <label
                 key={value}
@@ -484,7 +510,7 @@ const DashboardLayout = () => {
             </div>
           )}
 
-          {chatHistory.map(({ id, sender, text, isVoice, isListening }) => (
+          {chatHistory.map(({ id, sender, text, isVoice, isListening, imageUrl }) => (
             <div
               key={id}
               style={{
@@ -513,6 +539,20 @@ const DashboardLayout = () => {
                   animation: isListening ? "pulse 1.5s ease-in-out infinite" : "none",
                 }}
               >
+                {imageUrl && (
+                  <div style={{ marginBottom: "8px" }}>
+                    <img 
+                      src={imageUrl} 
+                      alt="Query image" 
+                      style={{ 
+                        maxWidth: "200px", 
+                        maxHeight: "150px", 
+                        borderRadius: "4px",
+                        display: "block"
+                      }} 
+                    />
+                  </div>
+                )}
                 {sender === "bot" && mode === "json" ? (
                   <JsonResultRenderer text={text} />
                 ) : (
@@ -551,7 +591,7 @@ const DashboardLayout = () => {
             type="text"
             placeholder={
               isFileProcessed
-                ? "Type your message or use voice..."
+                ? "Type your message, use voice, or upload image..."
                 : "Upload and process a PDF first"
             }
             style={isFileProcessed ? styles.input : styles.disabledInput}
@@ -589,6 +629,16 @@ const DashboardLayout = () => {
             }}
             disabled={!isFileProcessed || sending}
             autoSend={true}
+          />
+          <ImageQueryInput
+            onImageText={(text, autoSend, imageUrl) => {
+              if (autoSend) {
+                handleImageMessage(text, imageUrl);
+              } else {
+                setChatInput(text);
+              }
+            }}
+            disabled={!isFileProcessed || sending}
           />
           <button
             onClick={handleSendMessage}
