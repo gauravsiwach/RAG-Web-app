@@ -15,6 +15,7 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports inte
 | 🧠 **Multi-Query Translation** | Each query is expanded into 4 variants before retrieval. Results are merged, deduplicated, and ranked to maximize recall. |
 | 🔀 **Smart Query Routing** | LLM-based classifier (`query_classifier.py`) detects whether a query is STRUCTURED, SEMANTIC, or HYBRID and routes accordingly. |
 | 🔍 **Relevance Filtering** | Cosine similarity threshold (≥ 0.4) filters out low-quality chunks before they reach the LLM, reducing hallucinations. |
+| 🛡️ **Input/Output Guardrails** | Comprehensive validation layer with injection detection, length limits, and LLM-as-Judge relevance checking. |
 | ⚖️ **LLM-as-Judge** | After every response, a second LLM call rates relevance. If the answer is off-topic, a polite fallback is returned instead. |
 | 💬 **Structured JSON Responses** | JSON chat responses use a `{summary, data[], columns[]}` schema that auto-renders as styled HTML tables in the UI. |
 | ⚙️ **Configurable Chunking** | Chunk size (100–4000) and overlap (0–1000) are adjustable from the sidebar before indexing. |
@@ -38,7 +39,7 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports inte
 | `query_translation.py` | Multi-Query: generates 4 query variants for better retrieval |
 | `query_classifier.py` | LLM-based query classification (STRUCTURED / SEMANTIC / HYBRID) |
 | `vector_search.py` | Similarity search, relevance filter (≥ 0.4), deduplication, top-5 |
-| `response_judge.py` | LLM-as-Judge: validates response relevance, returns fallback if needed |
+| `guardrails.py` | Input validation (injection detection, length limits) + Output relevance validation |
 | `web_crawler.py` | Async web scraping (httpx + BeautifulSoup) |
 
 ### Frontend (`text-rag-app/src/`) — React 19 + Vite
@@ -56,7 +57,39 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports inte
 
 ---
 
-## 🔄 Data Flow
+## �️ Security & Validation
+
+### Guardrails System (`guardrails.py`)
+
+Comprehensive input/output validation layer that protects against malicious queries and ensures response quality:
+
+**Input Guardrails (Fast, No LLM Calls):**
+- ✅ **Empty Query Detection** — Rejects blank/whitespace-only inputs
+- ✅ **Length Limits** — Configurable maximum query length (default: 2000 chars)
+- ✅ **Injection Prevention** — Regex patterns detect prompt injection and SQL injection attempts
+- ✅ **Early Rejection** — Malicious queries blocked before any processing
+
+**Output Guardrails (LLM-Based):**
+- ✅ **Relevance Validation** — LLM-as-Judge ensures responses address the actual query
+- ✅ **Context Grounding** — Verifies answers are based on provided context, not hallucinated
+- ✅ **Fallback Responses** — Helpful suggestions when content isn't relevant
+
+**Integration Pattern:**
+```python
+# All chat handlers follow this pattern:
+input_check = guardrails_input(query)
+if not input_check["passed"]:
+    return input_check["message"]
+
+# ... process query ...
+
+evaluated_response = guardrails_output(query, response, context)
+return evaluated_response
+```
+
+---
+
+## �🔄 Data Flow
 
 ### PDF Mode
 ```
@@ -66,9 +99,10 @@ Upload PDF → POST /upload (multipart)
   → Delete old {COLLECTION}_pdf → Store vectors in Qdrant
 
 User query → POST /pdf_chat {message}
+  → guardrails_input() → validate query
   → translate_query() → 4 query variants
   → search_and_filter("pdf") → cosine ≥ 0.4 → dedup → top 5 chunks
-  → GPT-4o-mini with context → LLM judge → Response
+  → GPT-4o-mini with context → guardrails_output() → Response
 ```
 
 ### Web URL Mode
@@ -78,7 +112,8 @@ Enter URL → POST /web-url {url}
   → Chunk → Embed → Store in {COLLECTION}_url
 
 User query → POST /web_url_chat {message}
-  → similarity_search(k=5) → context → GPT-4o-mini → Response
+  → guardrails_input() → validate query
+  → similarity_search(k=5) → context → GPT-4o-mini → guardrails_output() → Response
 ```
 
 ### JSON Mode — V1 Classic (Pandas + Vector)
@@ -89,11 +124,12 @@ Upload JSON → POST /upload-json {file}
   → Create Qdrant payload indexes (price, brand, categoryName, hasPromotions)
 
 User query → POST /json_chat {message, version: "v1"}
+  → guardrails_input() → validate query
   → classify_query_type() → STRUCTURED | SEMANTIC | HYBRID
 
   STRUCTURED: load JSON from disk → Pandas filter → format results
-  SEMANTIC:   translate_query() → vector search → LLM → judge
-  HYBRID:     Pandas filter first → semantic search on subset → LLM
+  SEMANTIC:   translate_query() → vector search → LLM → guardrails_output()
+  HYBRID:     Pandas filter first → semantic search on subset → LLM → guardrails_output()
 ```
 
 ### JSON Mode — V2 Hybrid (Pure Qdrant)
@@ -101,13 +137,14 @@ User query → POST /json_chat {message, version: "v1"}
 Same indexing as V1
 
 User query → POST /json_chat {message, version: "v2"}
+  → guardrails_input() → validate query
   → classify_query_type() → STRUCTURED | SEMANTIC | HYBRID
 
   STRUCTURED: build_qdrant_filter() → single Qdrant query_points() call
-  SEMANTIC:   embed query → Qdrant vector search → LLM → judge
+  SEMANTIC:   embed query → Qdrant vector search → LLM → guardrails_output()
   HYBRID:     parse_hybrid_query() → embed semantic part + build filter
               → single Qdrant call (vector + filter combined)
-              → LLM → judge → Response
+              → LLM → guardrails_output() → Response
 ```
 
 ---
@@ -207,7 +244,7 @@ project-root/
 │   ├── query_translation.py        # Multi-Query expansion
 │   ├── query_classifier.py         # STRUCTURED/SEMANTIC/HYBRID classifier
 │   ├── vector_search.py            # Search, filter, deduplicate
-│   ├── response_judge.py           # LLM-as-Judge relevance check
+│   ├── guardrails.py               # Input/Output validation & security
 │   ├── web_crawler.py              # Async web scraping
 │   ├── requirements.txt            # Python dependencies
 │   ├── .env                        # ⚠️ Not committed — create manually
