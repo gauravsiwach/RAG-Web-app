@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { recognizeSpeechFromMicrophone } from './services/azureSpeechService';
 
-const VoiceInput = ({ onTranscript, onListeningChange, disabled, autoSend = false }) => {
+const VoiceInput = ({ onTranscript, onListeningChange, disabled, autoSend = false, userLanguage = "en-US" }) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,7 +17,7 @@ const VoiceInput = ({ onTranscript, onListeningChange, disabled, autoSend = fals
     console.log("🎤 Starting voice input...");
     
     try {
-      const transcript = await recognizeSpeechFromMicrophone();
+      const transcript = await recognizeSpeechFromMicrophone(userLanguage);
       console.log("✅ Voice recognized:", transcript);
       
       // Pass transcript to parent with autoSend flag
@@ -46,7 +46,7 @@ const VoiceInput = ({ onTranscript, onListeningChange, disabled, autoSend = fals
   };
 
   return (
-    <div className="voice-input-container" style={{ display: 'flex', alignItems: 'center' }}>
+    <div className="voice-input-container" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       <button
         onClick={handleVoiceInput}
         disabled={disabled || isListening}
