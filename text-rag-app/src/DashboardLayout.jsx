@@ -75,6 +75,7 @@ const styles = {
 
 const DashboardLayout = () => {
   const [isFileProcessed, setIsFileProcessed] = useState(false);
+  const [userLanguage, setUserLanguage] = useState("en-US");
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [sending, setSending] = useState(false);
@@ -320,6 +321,57 @@ const DashboardLayout = () => {
         `}</style>
 
       <div style={styles.sidebar}>
+        {/* Language selection dropdown */}
+        <div style={{ marginBottom: 2 }}>
+          <label htmlFor="voice-lang-select" style={{
+            display: 'block',
+            marginBottom: 8,
+            fontSize: 13,
+            color: '#94a3b8',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontWeight: 600
+          }}>
+            Voice Input Language
+          </label>
+          <div style={{
+            background: '#334155',
+            border: '1px solid #475569',
+            borderRadius: 8,
+            padding: '8px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 15,
+            color: '#cbd5e1',
+            fontWeight: 500,
+            width: '100%'
+          }}>
+            <span role="img" aria-label="mic">🎤</span>
+            <select
+              id="voice-lang-select"
+              value={userLanguage}
+              onChange={e => setUserLanguage(e.target.value)}
+              style={{
+                background: 'transparent',
+                color: '#fff',
+                border: 'none',
+                outline: 'none',
+                fontSize: 15,
+                fontWeight: 600,
+                flex: 1,
+                padding: '4px 0',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="en-US">English</option>
+              <option value="hi-IN">Hindi</option>
+            </select>
+          </div>
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>Source Configuration</h2>
           <ApiStatusBadge />
@@ -601,6 +653,7 @@ const DashboardLayout = () => {
             onKeyDown={handleKeyDown}
           />
           <VoiceInput
+            userLanguage={userLanguage}
             onTranscript={(text, autoSend) => {
               if (autoSend) {
                 handleVoiceMessage(text);
@@ -610,7 +663,6 @@ const DashboardLayout = () => {
             }}
             onListeningChange={(listening) => {
               setIsListeningToVoice(listening);
-              
               // Show "Listening..." indicator in chat
               if (listening) {
                 const listeningMessage = {
