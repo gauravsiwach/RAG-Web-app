@@ -11,7 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 import os
 
- 
+# Multi-language support
+from language_translation import (
+    process_multilingual_query,
+    process_multilingual_response,
+    get_supported_languages
+)
 
 from indexing import process_pdfFile
 from indexing import process_web_url_content
@@ -87,6 +92,13 @@ async def azure_ai_indexing_endpoint(payload: IndexingPayload):
 def health_check():
     return {"status": "ok", "message": "RAG API is running"}
 
+@app.get("/supported-languages")
+def get_languages():
+    """
+    Returns list of supported languages for multi-language queries.
+    """
+    return {"languages": get_supported_languages()}
+
 # Request model
 class ChatRequest(BaseModel):
     message: str
@@ -100,16 +112,16 @@ def chat_api(request: ChatRequest):
     print("Received request:", request)
     print("User message:", request.message)
     user_message = request.message
-    result=get_query_result_pdf(user_message)
-    return {"reply":result}  
+    result = get_query_result_pdf(user_message)
+    return {"reply": result}  
 
 @app.post("/web_url_chat", response_model=ChatResponse) 
-def chat_api(request: ChatRequest):
+def web_chat_api(request: ChatRequest):
     print("Received request:", request)
     print("User message:", request.message)
     user_message = request.message
-    result=get_query_result_web(user_message)
-    return {"reply":result}   
+    result = get_query_result_web(user_message)
+    return {"reply": result}
 
 @app.post("/json_chat", response_model=ChatResponse)
 def json_chat_api(request: ChatRequest):
