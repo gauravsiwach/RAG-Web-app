@@ -21,6 +21,7 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports inte
 | ⚙️ **Configurable Chunking** | Chunk size (100–4000) and overlap (0–1000) are adjustable from the sidebar before indexing. |
 | 🚫 **Duplicate Removal** | Retrieved chunks are deduplicated across all query variants before context is built for the LLM. |
 | 💾 **Use Existing Data** | A toggle lets users skip re-upload and chat with previously indexed data directly. |
+| 🗣️ **Voice Input Language Selector** | Users can select English or Hindi for voice queries from the Source Configuration sidebar. |
 
 ---
 
@@ -46,7 +47,7 @@ A full-stack **Retrieval-Augmented Generation (RAG)** chatbot that supports inte
 
 | Component | Responsibility |
 |-----------|---------------|
-| `DashboardLayout.jsx` | Main 2-column layout, mode switching, V1/V2 toggle, chat state |
+| `DashboardLayout.jsx` | Main 2-column layout, mode switching, V1/V2 toggle, chat state, global voice language selector |
 | `PdfUploader.jsx` | Drag-and-drop PDF upload with 50MB validation and toast feedback |
 | `WebUrlInput.jsx` | URL input form with async processing |
 | `JsonUploader.jsx` | JSON file upload with last-indexed timestamp |
@@ -337,6 +338,22 @@ RELEVANCE_THRESHOLD = 0.4  # Cosine similarity minimum (0–1)
 - CORS currently allows all origins (`allow_origins=["*"]`) — restrict for production
 - API keys only in `.env`, never hardcoded
 - JSON and PDF upload endpoints validate file types
+
+---
+
+## 🗣️ Voice Input Language Selector
+
+- The language selector is located in the Source Configuration sidebar (left panel).
+- Select either **English** or **Hindi** before using the microphone button.
+- The selected language is used for all speech-to-text queries via Azure Speech Service.
+
+---
+
+## 💬 Multi-Modal Chat Flow
+
+- Text, voice, and image queries all use the same chat interface and retrieval pipeline.
+- Voice and image queries are transcribed/extracted and sent to the backend for RAG-powered responses.
+- All input types benefit from the same retrieval, translation, and guardrails pipeline.
 
 ---
 
