@@ -9,6 +9,11 @@ from vector_search import search_and_filter
 from query_classifier import classify_query_type, extract_structured_filters
 from response_judge import evaluate_and_filter_response
 from guardrails import guardrails_input, guardrails_output
+from language_translation import (
+    detect_language,
+    translate_to_english,
+    translate_from_english
+)
 
 load_dotenv()
 
@@ -534,34 +539,53 @@ def generate_structured_response(query, context):
 
 def get_query_result_json(query):
     try:
-        # INPUT guardrail — reject bad queries before any processing
-        input_check = guardrails_input(query)
-        if not input_check["passed"]:
-            return input_check["message"]
-            
-        print(f"\n🧠 Original query: '{query}'")
+        # Step 1: Detect language and translate to English if needed
+        detected_lang = detect_language(query)
+        print(f"🌍 Detected language: {detected_lang}")
         
-        # Step 1: Classify query type
-        query_type = classify_query_type(query)
+        if detected_lang != "en":
+            english_query, _ = translate_to_english(query, detected_lang)
+            original_lang = detected_lang
+        else:
+            english_query = query
+            original_lang = "en"
+        
+        # Step 2: INPUT guardrail — reject bad queries before any processing
+        input_check = guardrails_input(english_query)
+        if not input_check["passed"]:
+            error_msg = input_check["message"]
+            # Translate error back if needed
+            if original_lang != "en":
+                error_msg = translate_from_english(error_msg, original_lang)
+            return error_msg
+            
+        print(f"\n🧠 Original query: '{english_query}'")
+        
+        # Step 3: Classify query type
+        query_type = classify_query_type(english_query)
         print(f"📂 Routing to handler for query type: {query_type}")
         
-        # Step 2: Route to appropriate handler based on classification
+        # Step 4: Route to appropriate handler based on classification
         if query_type == "STRUCTURED":
-            filters = extract_structured_filters(query)
-            result = handle_structured_query(query, filters)
+            filters = extract_structured_filters(english_query)
+            result = handle_structured_query(english_query, filters)
         elif query_type == "HYBRID":
-            result = handle_hybrid_query(query)
+            result = handle_hybrid_query(english_query)
         else:  # SEMANTIC (default)
-            result = handle_semantic_query(query)
+            result = handle_semantic_query(english_query)
         
-        # Step 3: Apply OUTPUT guardrail once (centralized)
+        # Step 5: Apply OUTPUT guardrail once (centralized)
         if isinstance(result, dict):
             response_str = json.dumps(result)
         else:
             response_str = result  # Already a JSON string
             
         context = "Query result processed through appropriate handler"
-        evaluated_response = guardrails_output(query, response_str, context)
+        evaluated_response = guardrails_output(english_query, response_str, context)
+        
+        # Step 6: Translate response back to original language if needed
+        if original_lang != "en":
+            evaluated_response = translate_from_english(evaluated_response, original_lang)
         
         # Return final response (guardrails handles JSON validation)
         return evaluated_response
