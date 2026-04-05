@@ -23,6 +23,11 @@ from query_translation import translate_query
 from query_classifier import classify_query_type, extract_structured_filters
 from response_judge import evaluate_and_filter_response
 from guardrails import guardrails_input, guardrails_output
+from language_translation import (
+    detect_language,
+    translate_to_english,
+    translate_from_english
+)
 
 load_dotenv()
 
@@ -382,34 +387,74 @@ def get_query_result_json_hybrid(query: str) -> str:
     - SEMANTIC: Pure Qdrant vector search
     - HYBRID: Qdrant hybrid search with semantic + filters
     """
+    import time
     try:
-        # INPUT guardrail — reject bad queries before any processing
-        input_check = guardrails_input(query)
+        step_times = {}
+        start_total = time.time()
+
+        # Step 1: Detect language and translate to English if needed
+        start = time.time()
+        detected_lang = detect_language(query)
+        print(f"🌍 Detected language: {detected_lang}")
+        step_times['detect_language'] = time.time() - start
+
+        start = time.time()
+        if detected_lang != "en":
+            english_query, _ = translate_to_english(query, detected_lang)
+            original_lang = detected_lang
+        else:
+            english_query = query
+            original_lang = "en"
+        step_times['translate_to_english'] = time.time() - start
+
+        # Step 2: INPUT guardrail — reject bad queries before any processing
+        start = time.time()
+        input_check = guardrails_input(english_query)
+        step_times['guardrails_input'] = time.time() - start
         if not input_check["passed"]:
-            return input_check["message"]
-            
-        print(f"\n🧠 Hybrid V2 query: '{query}'")
-        
-        # Step 1: Classify query type using the same logic as original
-        query_type = classify_query_type(query)
+            error_msg = input_check["message"]
+            # Translate error back if needed
+            start = time.time()
+            if original_lang != "en":
+                error_msg = translate_from_english(error_msg, original_lang)
+            step_times['translate_error'] = time.time() - start
+            print(f"⏱️ Step times: {step_times}")
+            return error_msg
+
+        print(f"\n🧠 Hybrid V2 query: '{english_query}'")
+
+        # Step 3: Classify query type using the same logic as original
+        start = time.time()
+        query_type = classify_query_type(english_query)
+        step_times['classify_query_type'] = time.time() - start
         print(f"📂 Routing to handler for query type: {query_type}")
-        
-        # Step 2: Route to appropriate handler based on classification
+
+        # Step 4: Route to appropriate handler based on classification
+        start = time.time()
         if query_type == "STRUCTURED":
-            filters = extract_structured_filters(query)
-            result = handle_structured_query_v2(query, filters)
-            
+            filters = extract_structured_filters(english_query)
+            result = handle_structured_query_v2(english_query, filters)
         elif query_type == "SEMANTIC":
-            result = handle_semantic_query_v2(query)
-            
+            result = handle_semantic_query_v2(english_query)
         else:  # HYBRID (default)
-            result = handle_hybrid_query_v2(query)
-        
-        # Step 3: Apply OUTPUT guardrail once (centralized)
+            result = handle_hybrid_query_v2(english_query)
+        step_times['vector search handler'] = time.time() - start
+
+        # Step 5: Apply OUTPUT guardrail once (centralized)
+        start = time.time()
         context = "Hybrid query result processed through appropriate handler"
-        evaluated_response = guardrails_output(query, result, context)
-        
+        evaluated_response = guardrails_output(english_query, result, context)
+        step_times['guardrails_output'] = time.time() - start
+
+        # Step 6: Translate response back to original language if needed
+        start = time.time()
+        if original_lang != "en":
+            evaluated_response = translate_from_english(evaluated_response, original_lang)
+        step_times['translate_from_english'] = time.time() - start
+
         print(f"\n🤖 Hybrid V2 result ready: {query_type}")
+        step_times['total'] = time.time() - start_total
+        print(f"⏱️ Step times: {step_times}")
         return evaluated_response
 
     except Exception as e:
@@ -561,7 +606,7 @@ def handle_semantic_query_v2(query: str) -> str:
                 seen_products.add(product_id)
         
         # Take top 5 unique results for LLM context to avoid timeouts
-        top_results = unique_results[:5]
+        top_results = unique_results[:3]
 
         # Debug: serialize only the payload (ScoredPoint is not JSON serializable)
         # debug_data = [{'score': item['score'], 'payload': item['result'].payload} for item in top_results]
