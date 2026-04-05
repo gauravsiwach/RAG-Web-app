@@ -4,7 +4,11 @@ from openai import OpenAI
 from query_translation import translate_query
 from vector_search import search_and_filter
 from guardrails import guardrails_input, guardrails_output
-
+from language_translation import (
+    detect_language,
+    translate_to_english,
+    translate_from_english
+)
 
 load_dotenv()
 
@@ -59,23 +63,45 @@ def _get_query_result_web_core(query):
 
 def get_query_result_web(query):
     """
-    Wrapper for Web URL chat: applies input/output guardrails and delegates to core logic.
+    Wrapper for Web URL chat: handles multi-language support, applies guardrails, and delegates to core logic.
     """
     try:
-        # INPUT guardrail — reject bad queries before any LLM/vector calls
-        input_check = guardrails_input(query)
+        # Step 1: Detect language and translate to English if needed
+        detected_lang = detect_language(query)
+        print(f"🌍 Detected language: {detected_lang}")
+        
+        if detected_lang != "en":
+            english_query, _ = translate_to_english(query, detected_lang)
+            original_lang = detected_lang
+        else:
+            english_query = query
+            original_lang = "en"
+        
+        # Step 2: INPUT guardrail — reject bad queries before any LLM/vector calls
+        input_check = guardrails_input(english_query)
         if not input_check["passed"]:
-            return input_check["message"]
+            error_msg = input_check["message"]
+            # Translate error back if needed
+            if original_lang != "en":
+                error_msg = translate_from_english(error_msg, original_lang)
+            return error_msg
 
-        # Core logic (returns answer, context)
-        answer, context = _get_query_result_web_core(query)
+        # Step 3: Core logic (returns answer, context)
+        answer, context = _get_query_result_web_core(english_query)
 
-        # If context is empty, this is a fallback (no LLM call made)
+        # Step 4: If context is empty, this is a fallback (no LLM call made)
         if not context:
+            if original_lang != "en":
+                answer = translate_from_english(answer, original_lang)
             return answer
 
-        # OUTPUT guardrail — relevance check before returning
-        final_answer = guardrails_output(query, answer, context)
+        # Step 5: OUTPUT guardrail — relevance check before returning
+        final_answer = guardrails_output(english_query, answer, context)
+        
+        # Step 6: Translate response back to original language if needed
+        if original_lang != "en":
+            final_answer = translate_from_english(final_answer, original_lang)
+        
         return final_answer
 
     except Exception as e:
